@@ -1,8 +1,7 @@
 param (
     [string]$BaselineDir = "$PSScriptRoot\..\snapshots\contract-v0",
     [string]$TargetDir = "$PSScriptRoot\..\snapshots\contract-current",
-    [switch]$RunTargetSnapshot,
-    [string]$BaseUrl = "http://localhost:4000"
+    [switch]$RunTargetSnapshot
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +15,7 @@ if (-not (Test-Path $baselineShapeFile)) {
 if ($RunTargetSnapshot) {
     Write-Host "Executando novo snapshot para comparação..." -ForegroundColor Cyan
     $snapshotScript = Join-Path $PSScriptRoot "snapshot-contract.ps1"
-    & $snapshotScript -BaseUrl $BaseUrl
+    & $snapshotScript   
     $TargetDir = $BaselineDir
 }
 
@@ -40,18 +39,18 @@ $differences = 0
 function Compare-Shapes($endpointName, $baseVal, $targetVal, $path = "") {
     if ($null -eq $baseVal -and $null -eq $targetVal) { return }
     if ($null -eq $baseVal) {
-        Write-Host "  [+] $endpointName -> $path: campo NOVO no alvo ($targetVal)" -ForegroundColor Yellow
+        Write-Host "  [+] $endpointName -> $($path): campo NOVO no alvo ($targetVal)" -ForegroundColor Yellow
         return
     }
     if ($null -eq $targetVal) {
-        Write-Host "  [-] $endpointName -> $path: campo FALTANDO no alvo (esperado: $baseVal)" -ForegroundColor Red
+        Write-Host "  [-] $endpointName -> $($path): campo FALTANDO no alvo (esperado: $baseVal)" -ForegroundColor Red
         $script:differences++
         return
     }
 
     if ($baseVal -is [string] -and $targetVal -is [string]) {
         if ($baseVal -ne $targetVal) {
-            Write-Host "  [!] $endpointName -> $path: TIPO DIVERGENTE. Baseline='$baseVal' vs Alvo='$targetVal'" -ForegroundColor Red
+            Write-Host "  [!] $endpointName -> $($path): TIPO DIVERGENTE. Baseline='$baseVal' vs Alvo='$targetVal'" -ForegroundColor Red
             $script:differences++
         }
         return
@@ -64,7 +63,7 @@ function Compare-Shapes($endpointName, $baseVal, $targetVal, $path = "") {
         foreach ($p in $baseProps) {
             $subPath = if ($path) { "$path.$p" } else { $p }
             if ($p -notin $targetProps) {
-                Write-Host "  [-] $endpointName -> $subPath: PROPRIEDADE AUSENTE" -ForegroundColor Red
+                Write-Host "  [-] $endpointName -> $($subPath): PROPRIEDADE AUSENTE" -ForegroundColor Red
                 $script:differences++
             } else {
                 Compare-Shapes $endpointName $baseVal.$p $targetVal.$p $subPath
@@ -73,14 +72,14 @@ function Compare-Shapes($endpointName, $baseVal, $targetVal, $path = "") {
         foreach ($p in $targetProps) {
             $subPath = if ($path) { "$path.$p" } else { $p }
             if ($p -notin $baseProps) {
-                Write-Host "  [+] $endpointName -> $subPath: PROPRIEDADE EXTRA" -ForegroundColor Yellow
+                Write-Host "  [+] $endpointName -> $($subPath): PROPRIEDADE EXTRA" -ForegroundColor Yellow
             }
         }
         return
     }
 
     if ($baseVal -ne $targetVal) {
-        Write-Host "  [!] $endpointName -> $path: VALOR/TIPO DIFERENTE ($baseVal vs $targetVal)" -ForegroundColor Red
+        Write-Host "  [!] $endpointName -> $($path): VALOR/TIPO DIFERENTE ($baseVal vs $targetVal)" -ForegroundColor Red
         $script:differences++
     }
 }
@@ -97,7 +96,7 @@ foreach ($ep in $baseEndpoints) {
         $t = $target.$ep
 
         if ($b.status -ne $t.status) {
-            Write-Host "[!] Status code alterado em $ep: Baseline=$($b.status) vs Alvo=$($t.status)" -ForegroundColor Red
+            Write-Host "[!] Status code alterado em $($ep): Baseline=$($b.status) vs Alvo=$($t.status)" -ForegroundColor Red
             $differences++
         }
         Compare-Shapes $ep $b.bodyShape $t.bodyShape ""

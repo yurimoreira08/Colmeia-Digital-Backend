@@ -71,15 +71,15 @@ if (-not (Test-Path $envFile)) {
     exit 1
 }
 
-$databaseUrl = $null
-Get-Content $envFile | ForEach-Object {
-    $line = $_.Trim()
+$databaseUrl = foreach ($rawLine in (Get-Content $envFile)) {
+    $line = $rawLine.Trim()
     if ($line -match '^DATABASE_URL\s*=\s*(.*)$') {
         $val = $matches[1].Trim()
         if (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'"))) {
             $val = $val.Substring(1, $val.Length - 2)
         }
-        $databaseUrl = $val
+        $val
+        break
     }
 }
 
@@ -88,7 +88,16 @@ if (-not $databaseUrl) {
     exit 1
 }
 
-# 3. Selecionar o arquivo de backup
+# 3. Mascarar URL para exibicao no console
+try {
+    $uri = [System.Uri]$databaseUrl
+    $maskedHost = $uri.Scheme + '://' + $uri.Host + ':' + $uri.Port + $uri.AbsolutePath
+    Write-Host "[INFO] Banco alvo: $maskedHost" -ForegroundColor DarkCyan
+} catch {
+    Write-Host '[INFO] Banco alvo: PostgreSQL (Supabase)' -ForegroundColor DarkCyan
+}
+
+# 4. Selecionar o arquivo de backup
 $backupDir = Join-Path $rootDir 'backups'
 $selectedFile = $null
 
@@ -148,7 +157,7 @@ Write-Host "  Nome: $($selectedItem.Name)" -ForegroundColor White
 Write-Host "  Data: $($selectedItem.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss'))" -ForegroundColor DarkGray
 Write-Host ''
 
-# 4. Confirmacao explicita de seguranca
+# 5. Confirmacao explicita de seguranca
 Write-Host '[ATENCAO] ESTA OPERACAO E DESTRUTIVA!' -ForegroundColor Red
 Write-Host 'Todos os dados atuais das tabelas do app serao substituidos pelos dados deste backup.' -ForegroundColor Yellow
 Write-Host ''
@@ -159,7 +168,7 @@ if ($confirmation -ne 'SIM') {
     exit 0
 }
 
-# 5. Backup automatico de seguranca pre-restore (apenas schema public)
+# 6. Backup automatico de seguranca pre-restore (apenas schema public)
 Write-Host ''
 Write-Host '[SEGURANCA] Gerando backup do estado atual antes do restore...' -ForegroundColor Cyan
 $preRestoreFile = $null
@@ -173,7 +182,7 @@ if ($pgDumpCmd) {
         '--if-exists',
         '--no-owner',
         '--no-privileges',
-        "--dbname=$databaseUrl",
+        '--dbname', $databaseUrl,
         "--file=$preRestoreFile"
     )
 
@@ -185,13 +194,13 @@ if ($pgDumpCmd) {
     }
 }
 
-# 6. Executar Restauracao via psql com captura estrita de erros
+# 7. Executar Restauracao via psql com captura estrita de erros
 Write-Host ''
 Write-Host '[INFO] Restaurando schema public a partir do arquivo selecionado...' -ForegroundColor Magenta
 
 $psqlArgs = @(
     '-v', 'ON_ERROR_STOP=1',
-    "--dbname=$databaseUrl",
+    '--dbname', $databaseUrl,
     "--file=$selectedFile"
 )
 

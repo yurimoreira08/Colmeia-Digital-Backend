@@ -69,14 +69,15 @@ if (-not (Test-Path $envFile)) {
 }
 
 $databaseUrl = $null
-Get-Content $envFile | ForEach-Object {
-    $line = $_.Trim()
+foreach ($rawLine in (Get-Content $envFile)) {
+    $line = $rawLine.Trim()
     if ($line -match '^DATABASE_URL\s*=\s*(.*)$') {
         $val = $matches[1].Trim()
         if (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'"))) {
             $val = $val.Substring(1, $val.Length - 2)
         }
         $databaseUrl = $val
+        break
     }
 }
 
