@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     Int        @id @default(autoincrement())
+  name                   String
+  email                  String     @unique
+  password_hash          String
+  photo                  String?
+  terms_accepted_at      DateTime?
+  terms_accepted_version String?
+  created_at             DateTime   @default(now())
+  updated_at             DateTime   @updatedAt
+
+  sessions        Session[]
+  apiaries        Apiary[]
+  password_resets PasswordReset[]
+
+  @@map("users")
+}
+
+model PasswordReset {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  code_hash  String
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([code_hash])
+  @@map("password_resets")
+}
+
+model Session {
+  id          Int      @id @default(autoincrement())
+  user_id     Int
+  token_hash  String   @unique
+  device_info String?
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token_hash])
+  @@map("sessions")
+}
+
+model Apiary {
+  id          Int      @id @default(autoincrement())
+  user_id     Int
+  name        String
+  location    String
+  box_count   Int      @default(0)
+  description String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  boxes       Box[]
+
+  @@index([user_id])
+  @@map("apiaries")
+}
+
+model Box {
+  id         Int      @id @default(autoincrement())
+  apiary_id  Int
+  user_id    Int?
+  name       String
+  position   Int
+  archived   Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  apiary     Apiary   @relation(fields: [apiary_id], references: [id], onDelete: Cascade)
+
+  @@index([apiary_id, archived])
+  @@index([user_id])
+  @@map("boxes")
+}
+
+model ReviewReport {
+  id              Int      @id @default(autoincrement())
+  client_uuid     String?  @unique
+  user_id         Int?
+  apiary_id       Int?
+  apiary_name     String?
+  caixa_id        Int
+  caixa_name      String
+  tipo            String
+  checked_options String
+  observacoes     String?
+  indicacoes      String?
+  archived        Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@index([apiary_id, caixa_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@map("review_reports")
+}
+
+model Manejo {
+  id              Int      @id @default(autoincrement())
+  client_uuid     String?  @unique
+  user_id         Int?
+  apiary_id       Int?
+  apiary_name     String?
+  caixa_id        Int
+  caixa_name      String
+  tipo            String
+  revisao_id      Int?
+  checked_options String
+  observacoes     String?
+  indicacoes      String?
+  photo_uri       String?
+  archived        Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@index([apiary_id, caixa_id])
+  @@index([user_id])
+  @@index([created_at])
+  @@map("manejos")
+}
+
+model Notification {
+  id         Int      @id @default(autoincrement())
+  user_id    Int?
+  title      String
+  subtitle   String
+  read       Int      @default(0)
+  created_at DateTime @default(now())
+
+  @@index([user_id])
+  @@map("notifications")
+}
+
+model AppConfig {
+  key   String @id
+  value String
+
+  @@map("app_config")
+}
