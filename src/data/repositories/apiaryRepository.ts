@@ -2,11 +2,12 @@ import { prisma } from '../prisma.js';
 import type { Apiary } from '../../types/mobile-models.js';
 
 function mapPrismaApiary(a: any): Apiary {
+  const actualCount = a._count?.boxes !== undefined ? a._count.boxes : a.box_count;
   return {
     id: a.id,
     name: a.name,
     location: a.location,
-    boxCount: a.box_count,
+    boxCount: actualCount,
     description: a.description || '',
     createdAt: a.created_at instanceof Date ? a.created_at.toISOString() : String(a.created_at),
     updatedAt: a.updated_at instanceof Date ? a.updated_at.toISOString() : String(a.updated_at),
@@ -23,6 +24,15 @@ export async function listApiaries(userId?: number): Promise<Apiary[]> {
 
   const rows = await prisma.apiary.findMany({
     where,
+    include: {
+      _count: {
+        select: {
+          boxes: {
+            where: { archived: 0 },
+          },
+        },
+      },
+    },
     orderBy: [
       { updated_at: 'desc' },
       { id: 'desc' },
@@ -40,6 +50,15 @@ export async function getApiaryById(id: number, userId?: number): Promise<Apiary
 
   const row = await prisma.apiary.findFirst({
     where,
+    include: {
+      _count: {
+        select: {
+          boxes: {
+            where: { archived: 0 },
+          },
+        },
+      },
+    },
   });
 
   return row ? mapPrismaApiary(row) : null;
@@ -54,13 +73,37 @@ export async function createApiary(
   },
   userId?: number,
 ): Promise<Apiary> {
+  const trimmedName = params.name.trim();
+  const trimmedLocation = params.location.trim();
+  const targetUserId = userId ?? 0;
+
+  // Evita duplicação se o mesmo apiário for enviado repetidamente durante sincronizações
+  const existing = await prisma.apiary.findFirst({
+    where: {
+      user_id: targetUserId,
+      name: { equals: trimmedName, mode: 'insensitive' },
+    },
+  });
+
+  if (existing) {
+    const updated = await prisma.apiary.update({
+      where: { id: existing.id },
+      data: {
+        location: trimmedLocation,
+        box_count: params.boxCount,
+        description: params.description.trim(),
+      },
+    });
+    return mapPrismaApiary(updated);
+  }
+
   const row = await prisma.apiary.create({
     data: {
-      name: params.name.trim(),
-      location: params.location.trim(),
+      name: trimmedName,
+      location: trimmedLocation,
       box_count: params.boxCount,
       description: params.description.trim(),
-      user_id: userId ?? 0,
+      user_id: targetUserId,
     },
   });
 

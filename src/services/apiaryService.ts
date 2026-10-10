@@ -38,22 +38,22 @@ export async function saveApiary(
     name: string;
     location: string;
     boxCount: string;
-    description: string;
+    description?: string;
   },
   userId?: number,
 ): Promise<Apiary> {
   assertRequired(params.name, 'o nome do apiário');
   assertRequired(params.location, 'o local do apiário');
-  assertRequired(params.description, 'a descrição do apiário');
 
   const parsedBoxCount = parseBoxCount(params.boxCount);
+  const finalDescription = params.description || '';
 
   if (params.id) {
     const updated = await updateApiary(params.id, {
       name: params.name,
       location: params.location,
       boxCount: parsedBoxCount,
-      description: params.description,
+      description: finalDescription,
     }, userId);
 
     await createNotification({
@@ -68,7 +68,7 @@ export async function saveApiary(
     name: params.name,
     location: params.location,
     boxCount: parsedBoxCount,
-    description: params.description,
+    description: finalDescription,
   }, userId);
 
   await createNotification({

@@ -83,10 +83,46 @@ export async function createBox(
   },
   userId?: number,
 ): Promise<Box> {
+  const trimmedName = params.name.trim();
+
+  // Verifica se já existe uma caixa com mesmo nome ou mesma posição neste apiário (evita duplicatas ao sincronizar)
+  const existingBox = await prisma.box.findFirst({
+    where: {
+      apiary_id: params.apiaryId,
+      archived: 0,
+      OR: [
+        { name: { equals: trimmedName, mode: 'insensitive' } },
+        { position: params.position },
+      ],
+    },
+    include: {
+      apiary: {
+        select: { name: true },
+      },
+    },
+  });
+
+  if (existingBox) {
+    // Se encontrou pela posição mas o nome for diferente, ou se é a mesma caixa, atualiza o nome
+    if (existingBox.name.toLowerCase() !== trimmedName.toLowerCase()) {
+      const updated = await prisma.box.update({
+        where: { id: existingBox.id },
+        data: { name: trimmedName },
+        include: {
+          apiary: {
+            select: { name: true },
+          },
+        },
+      });
+      return mapPrismaBox(updated);
+    }
+    return mapPrismaBox(existingBox);
+  }
+
   const row = await prisma.box.create({
     data: {
       apiary_id: params.apiaryId,
-      name: params.name.trim(),
+      name: trimmedName,
       position: params.position,
       user_id: userId ?? null,
     },
