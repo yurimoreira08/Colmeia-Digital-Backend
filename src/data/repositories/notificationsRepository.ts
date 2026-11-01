@@ -18,14 +18,15 @@ function mapPrismaNotification(n: any): NotificationRecord {
   };
 }
 
-export async function listRecentNotifications(limit = 50, userId?: number): Promise<NotificationRecord[]> {
-  const where: any = {};
-  if (userId !== undefined) {
-    where.user_id = userId;
+export async function listRecentNotifications(userId: number, limit = 50): Promise<NotificationRecord[]> {
+  if (!userId || typeof userId !== 'number') {
+    return [];
   }
 
   const rows = await prisma.notification.findMany({
-    where,
+    where: {
+      user_id: userId,
+    },
     orderBy: [
       { created_at: 'desc' },
       { id: 'desc' },
@@ -37,13 +38,9 @@ export async function listRecentNotifications(limit = 50, userId?: number): Prom
 }
 
 export async function getNotificationById(id: number, userId?: number): Promise<NotificationRecord | null> {
-  const where: any = { id };
-  if (userId !== undefined) {
-    where.user_id = userId;
-  }
-
+  if (!userId) return null;
   const row = await prisma.notification.findFirst({
-    where,
+    where: { id, user_id: userId },
   });
 
   return row ? mapPrismaNotification(row) : null;
@@ -69,25 +66,17 @@ export async function createNotification(
 }
 
 export async function markNotificationAsRead(id: number, userId?: number): Promise<void> {
-  const where: any = { id };
-  if (userId !== undefined) {
-    where.user_id = userId;
-  }
-
+  if (!userId) return;
   await prisma.notification.updateMany({
-    where,
+    where: { id, user_id: userId },
     data: { read: 1 },
   });
 }
 
 export async function markAllNotificationsAsRead(userId?: number): Promise<void> {
-  const where: any = {};
-  if (userId !== undefined) {
-    where.user_id = userId;
-  }
-
+  if (!userId) return;
   await prisma.notification.updateMany({
-    where,
+    where: { user_id: userId },
     data: { read: 1 },
   });
 }

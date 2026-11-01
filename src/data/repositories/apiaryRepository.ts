@@ -17,10 +17,13 @@ function mapPrismaApiary(a: any): Apiary {
 }
 
 export async function listApiaries(userId?: number): Promise<Apiary[]> {
-  const where: any = {};
-  if (userId !== undefined) {
-    where.user_id = userId;
+  if (!userId || typeof userId !== 'number') {
+    return [];
   }
+
+  const where: any = {
+    user_id: userId,
+  };
 
   const rows = await prisma.apiary.findMany({
     where,

@@ -394,6 +394,53 @@ Assert-Test 'Isolamento: Usuario 2 nao enxerga apiarios do Usuario 1' {
     if ($leaked) { throw "VAZAMENTO DE DADOS: Usuario 2 enxergou o apiario $apiaryId do Usuario 1!" }
 }
 
+Assert-Test 'Isolamento: Usuario 2 nao enxerga notificacoes do Usuario 1' {
+    # Criar uma notificacao explicita no Usuario 1
+    $notifRes = Invoke-Api -Method 'POST' -Path '/notifications' -Headers $authHeaders -Body @{
+        title = "Notificacao Privada User 1 $timestamp"
+        subtitle = "Conteudo confidencial de teste"
+    }
+    if ($notifRes.Status -ne 200) { throw "Falha ao criar notificacao para Usuario 1: $($notifRes.Status)" }
+    $user1NotifId = $notifRes.Body.id
+
+    # Usuario 2 lista notificacoes
+    $res = Invoke-Api -Method 'GET' -Path '/notifications' -Headers @{ 'Authorization' = "Bearer $user2Token" }
+    if ($res.Status -ne 200) { throw "Status $($res.Status)" }
+    $leaked = $res.Body | Where-Object { $_.id -eq $user1NotifId }
+    if ($leaked) { throw "VAZAMENTO DE DADOS: Usuario 2 enxergou a notificacao $user1NotifId do Usuario 1!" }
+}
+
+Assert-Test 'Isolamento: Usuario 2 nao enxerga caixas do Usuario 1' {
+    $res = Invoke-Api -Method 'GET' -Path '/boxes' -Headers @{ 'Authorization' = "Bearer $user2Token" }
+    if ($res.Status -ne 200) { throw "Status $($res.Status)" }
+    $leaked = $res.Body | Where-Object { $_.id -eq $box1Id }
+    if ($leaked) { throw "VAZAMENTO DE DADOS: Usuario 2 enxergou a caixa $box1Id do Usuario 1!" }
+
+    # Listagem filtrada por apiaryId do Usuario 1
+    $resDirect = Invoke-Api -Method 'GET' -Path "/boxes?apiaryId=$apiaryId" -Headers @{ 'Authorization' = "Bearer $user2Token" }
+    $count = if ($null -eq $resDirect.Body) { 0 } elseif ($resDirect.Body -is [array]) { $resDirect.Body.Count } else { @($resDirect.Body).Count }
+    if ($count -gt 0) { throw "VAZAMENTO DE DADOS: Usuario 2 acessou caixas do apiario $apiaryId do Usuario 1!" }
+}
+
+Assert-Test 'Isolamento: Usuario 2 nao enxerga revisoes do Usuario 1' {
+    $res = Invoke-Api -Method 'GET' -Path '/revisions' -Headers @{ 'Authorization' = "Bearer $user2Token" }
+    if ($res.Status -ne 200) { throw "Status $($res.Status)" }
+    $leaked = $res.Body | Where-Object { $_.id -eq $revisionId }
+    if ($leaked) { throw "VAZAMENTO DE DADOS: Usuario 2 enxergou a revisao $revisionId do Usuario 1!" }
+}
+
+Assert-Test 'Isolamento: Usuario 2 nao enxerga manejos do Usuario 1' {
+    $res = Invoke-Api -Method 'GET' -Path '/manejos' -Headers @{ 'Authorization' = "Bearer $user2Token" }
+    if ($res.Status -ne 200) { throw "Status $($res.Status)" }
+    $leaked = $res.Body | Where-Object { $_.id -eq $manejoId }
+    if ($leaked) { throw "VAZAMENTO DE DADOS: Usuario 2 enxergou o manejo $manejoId do Usuario 1!" }
+}
+
+Assert-Test 'Seguranca: Requisicao com x-user-id sem Bearer token e bloqueada com 401' {
+    $res = Invoke-Api -Method 'GET' -Path '/apiaries' -Headers @{ 'x-user-id' = '1' }
+    if ($res.Status -ne 401) { throw "Esperado status 401, recebido $($res.Status). Fallback de x-user-id ainda esta ativo!" }
+}
+
 Write-Host ''
 Write-Host '--- 7. EXCLUSAO EM CASCATA ---' -ForegroundColor Yellow
 

@@ -122,3 +122,60 @@ export async function uploadImageToStorage(params: UploadImageParams): Promise<U
     path: filePath,
   };
 }
+
+export interface UploadBufferParams {
+  userId: number;
+  folder: 'manejos' | 'profiles' | 'geral';
+  buffer: Buffer;
+  mimeType: string;
+  fileName?: string;
+}
+
+/**
+ * Envia um Buffer de arquivo (ex: recebido via multipart/form-data) para o Supabase Storage
+ */
+export async function uploadBufferToStorage(params: UploadBufferParams): Promise<UploadResult> {
+  const { userId, folder, buffer, mimeType, fileName } = params;
+
+  if (!buffer || buffer.length === 0) {
+    throw new Error('Nenhum buffer de imagem fornecido para upload.');
+  }
+
+  const client = getSupabaseClient();
+  const bucketName = (env.SUPABASE_BUCKET_NAME || process.env.SUPABASE_BUCKET_NAME || 'colmeia-digital').trim();
+
+  let extension = mimeType.split('/')[1] || 'jpg';
+  if (extension === 'jpeg') extension = 'jpg';
+
+  const uniqueId = randomUUID().replace(/-/g, '').slice(0, 12);
+  const timestamp = Date.now();
+  const safeFileName = fileName
+    ? `${timestamp}_${uniqueId}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '')}`
+    : `${timestamp}_${uniqueId}.${extension}`;
+
+  const filePath = `${folder}/${userId}/${safeFileName}`;
+
+  console.log(`[StorageService] Enviando buffer para bucket "${bucketName}" caminho "${filePath}" (${buffer.length} bytes, MIME: ${mimeType})...`);
+
+  const { error: uploadError } = await client.storage
+    .from(bucketName)
+    .upload(filePath, buffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
+
+  if (uploadError) {
+    console.error('[StorageService] Erro no upload do buffer para Supabase:', uploadError);
+    throw new Error(`Falha no upload para o Supabase Storage: ${uploadError.message || JSON.stringify(uploadError)}`);
+  }
+
+  const { data } = client.storage.from(bucketName).getPublicUrl(filePath);
+
+  console.log(`[StorageService] Upload de buffer concluído com sucesso. URL: ${data.publicUrl}`);
+
+  return {
+    url: data.publicUrl,
+    path: filePath,
+  };
+}
+

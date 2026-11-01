@@ -18,13 +18,15 @@ export async function listBoxes(
   params?: { apiaryId?: number; search?: string; includeArchived?: boolean; showAll?: boolean },
   userId?: number,
 ): Promise<Box[]> {
-  const where: any = {};
-
-  if (userId !== undefined) {
-    where.apiary = {
-      user_id: userId,
-    };
+  if (!userId || typeof userId !== 'number') {
+    return [];
   }
+
+  const where: any = {
+    apiary: {
+      user_id: userId,
+    },
+  };
 
   if (params?.showAll) {
     // Não filtra por arquivado

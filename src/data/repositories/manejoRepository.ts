@@ -84,17 +84,19 @@ export async function listManejos(
   },
   userId?: number,
 ): Promise<ManejoReport[]> {
-  const where: any = {};
+  if (!userId || typeof userId !== 'number') {
+    return [];
+  }
 
-  if (userId !== undefined) {
-    const userApiaries = await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } });
-    const userApiaryIds = userApiaries.map((a: { id: number }) => a.id);
+  const userApiaries = await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } });
+  const userApiaryIds = userApiaries.map((a: { id: number }) => a.id);
 
-    where.OR = [
+  const where: any = {
+    OR: [
       { user_id: userId },
       { apiary_id: { in: userApiaryIds } },
-    ];
-  }
+    ],
+  };
 
   if (!params?.includeArchived) {
     where.archived = 0;

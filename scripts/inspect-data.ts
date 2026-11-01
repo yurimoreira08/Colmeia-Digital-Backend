@@ -38,7 +38,7 @@ async function inspect() {
     console.table(manejos);
 
   } catch (err) {
-    console.error('Erro na inspeção:', err);
+    console.error('Erro na verificação de dados:', err);
   } finally {
     await prisma.$disconnect();
   }

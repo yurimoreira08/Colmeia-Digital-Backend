@@ -15,19 +15,7 @@ export async function parseUserId(req: any, _res: any, next: any): Promise<void>
     }
   }
 
-  // Fallback para desenvolvimento / snapshot baseline
-  const headerId = req.headers['x-user-id'] || req.headers['X-User-Id'];
-  if (headerId) {
-    const parsed = Number(headerId);
-    if (!Number.isNaN(parsed) && parsed > 0) {
-      req.userId = parsed;
-    } else {
-      req.userId = undefined;
-    }
-  } else {
-    req.userId = undefined;
-  }
-
+  req.userId = undefined;
   next();
 }
 

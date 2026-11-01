@@ -66,6 +66,8 @@ export type User = {
   email: string;
   passwordHash: string;
   photo?: string | null;
+  terms_accepted_at?: string | null;
+  terms_version?: string | null;
   termsAcceptedAt?: string;
   termsAcceptedVersion?: string;
   createdAt: string;

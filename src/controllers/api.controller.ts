@@ -340,7 +340,11 @@ export async function unarchiveManejoController(req: any, res: any): Promise<voi
 
 export async function listNotificationsController(req: any, res: any): Promise<void> {
   try {
-    const notifs = await listRecentNotifications(req.userId);
+    if (!req.userId) {
+      res.status(401).json({ message: 'Não autorizado. Usuário não identificado.' });
+      return;
+    }
+    const notifs = await listRecentNotifications(req.userId, 50);
     res.status(200).json(notifs);
   } catch (error) {
     res.status(500).json({ message: 'Erro ao listar notificações.' });
@@ -431,4 +435,45 @@ export async function uploadController(req: any, res: any): Promise<void> {
     });
   }
 }
+
+/**
+ * Controller para upload multipart/form-data de fotos de manejo
+ * Endpoint: POST /upload/manejo-photo
+ */
+export async function uploadManejoPhotoController(req: any, res: any): Promise<void> {
+  try {
+    if (!req.file) {
+      res.status(400).json({ message: 'Nenhuma foto enviada no campo multipart "photo".' });
+      return;
+    }
+
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ message: 'Autenticação necessária para upload de fotos.' });
+      return;
+    }
+
+    const { buffer, mimetype, originalname } = req.file;
+
+    const result = await storageService.uploadBufferToStorage({
+      userId,
+      folder: 'manejos',
+      buffer,
+      mimeType: mimetype,
+      fileName: originalname,
+    });
+
+    res.status(200).json({
+      success: true,
+      url: result.url,
+      path: result.path,
+    });
+  } catch (error) {
+    console.error('[UploadManejoPhotoController] Falha:', error);
+    res.status(500).json({
+      message: error instanceof Error ? error.message : 'Erro ao processar upload da foto de manejo.',
+    });
+  }
+}
+
 

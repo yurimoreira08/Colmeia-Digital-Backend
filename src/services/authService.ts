@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { createUser, findUserByEmail, findUserById, updateUser, findUserByName, updateUserPassword } from '../data/repositories/userRepository.js';
+import { createUser, findUserByEmail, findUserById, updateUser, findUserByName, updateUserPassword, acceptUserTerms } from '../data/repositories/userRepository.js';
 import { createSession, deleteSessionByTokenHash, clearActiveSession, findSessionByTokenHash, deleteSessionsByUserId } from '../data/repositories/sessionRepository.js';
 import { createPasswordReset, findValidResetByCodeHash, markResetAsUsed, invalidatePreviousResets } from '../data/repositories/passwordResetRepository.js';
 import { sendPasswordResetEmail } from './emailService.js';
@@ -99,8 +99,8 @@ export async function register(params: {
   return { token, user };
 }
 
-export async function acceptTerms(userId: number, version: string = 'v1'): Promise<User> {
-  return updateUser(userId, { termsAcceptedVersion: version });
+export async function acceptTerms(userId: number, version: string = 'v1'): Promise<{ success: boolean; terms_accepted_at: string; terms_version: string; user: User }> {
+  return acceptUserTerms(userId, version);
 }
 
 export async function login(params: {
