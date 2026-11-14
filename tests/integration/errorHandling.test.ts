@@ -50,7 +50,7 @@ describe('tratamento central de erros', () => {
     const response = await request(createApp())
       .post('/api/v1/reports/stats')
       .set('Authorization', authHeader(USER_ID))
-      .send({ fromIso: '2026-01-01T00:00:00Z', toIso: '2026-12-31T00:00:00Z', chartFilter: 'all' });
+      .send({ fromIso: '2026-01-01T00:00:00Z', toIso: '2026-12-31T00:00:00Z', chartFilter: 'apiarios' });
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(response.body)).not.toMatch(/prisma|supabase|secret/i);
