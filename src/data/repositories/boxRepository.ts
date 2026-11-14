@@ -1,6 +1,5 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma.js';
-import { findOwnedApiaryIds } from './ownershipRepository.js';
 import type { Box } from '../../types/mobile-models.js';
 
 function mapPrismaBox(b: any): Box {
