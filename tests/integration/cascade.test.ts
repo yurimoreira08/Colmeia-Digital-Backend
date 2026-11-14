@@ -18,7 +18,7 @@ let db: FakeDb;
 
 const record = (id: number, extra: Record<string, unknown>) => ({
   id, client_uuid: null, apiary_id: 10, apiary_name: 'Sede', caixa_id: 100, caixa_name: 'Caixa 01', tipo: 'apiario',
-  checked_options: '[]', observacoes: '', indicacoes: '', archived: 0, created_at: created, updated_at: created, ...extra,
+  checked_options: '[]', observacoes: '', indicacoes: '', archived: false, created_at: created, updated_at: created, ...extra,
 });
 
 beforeEach(() => {
@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
   db = useFakeDb({
     apiaries: [{ id: 10, user_id: OWNER, name: 'Sede', location: 'Teresina', box_count: 1, description: '', created_at: created, updated_at: created }],
-    boxes: [{ id: 100, apiary_id: 10, user_id: OWNER, name: 'Caixa 01', position: 1, archived: 0, created_at: created, updated_at: created }],
+    boxes: [{ id: 100, apiary_id: 10, user_id: OWNER, name: 'Caixa 01', position: 1, archived: false, created_at: created, updated_at: created }],
     reviewReports: [
       record(200, { user_id: OWNER }),
       // Registros antigos, criados antes do user_id existir: também são do apiário.
@@ -35,7 +35,7 @@ beforeEach(() => {
     ],
     manejos: [record(300, { user_id: OWNER, revisao_id: null, photo_uri: null }), record(301, { user_id: null, revisao_id: null, photo_uri: null })],
   });
-  prismaMock.notification.create.mockImplementation(async ({ data }) => ({ id: 1, created_at: created, read: 0, ...data }));
+  prismaMock.notification.create.mockImplementation(async ({ data }) => ({ id: 1, created_at: created, read: false, ...data }));
 });
 
 const asOwner = (req: request.Test) => req.set('Authorization', authHeader(OWNER));
@@ -91,9 +91,9 @@ describe('arquivar e desarquivar caixa', () => {
     const response = await asOwner(request(createApp()).post('/api/v1/boxes/100/archive'));
 
     expect(response.status).toBe(200);
-    expect(db.boxes[0].archived).toBe(1);
-    expect(db.reviewReports.map((r) => r.archived)).toEqual([1, 1]);
-    expect(db.manejos.map((m) => m.archived)).toEqual([1, 1]);
+    expect(db.boxes[0].archived).toBe(true);
+    expect(db.reviewReports.map((r) => r.archived)).toEqual([true, true]);
+    expect(db.manejos.map((m) => m.archived)).toEqual([true, true]);
   });
 
   it('não arquiva nada se uma etapa falhar no meio', async () => {
@@ -102,20 +102,48 @@ describe('arquivar e desarquivar caixa', () => {
     const response = await asOwner(request(createApp()).post('/api/v1/boxes/100/archive'));
 
     expect(response.status).toBe(500);
-    expect(db.boxes[0].archived).toBe(0);
-    expect(db.reviewReports.map((r) => r.archived)).toEqual([0, 0]);
+    expect(db.boxes[0].archived).toBe(false);
+    expect(db.reviewReports.map((r) => r.archived)).toEqual([false, false]);
   });
 
   it('não desarquiva nada se uma etapa falhar no meio', async () => {
-    db.boxes[0].archived = 1;
-    db.reviewReports.forEach((r) => (r.archived = 1));
-    db.manejos.forEach((m) => (m.archived = 1));
+    db.boxes[0].archived = true;
+    db.reviewReports.forEach((r) => (r.archived = true));
+    db.manejos.forEach((m) => (m.archived = true));
     prismaMock.manejo.updateMany.mockRejectedValueOnce(new Error('falha simulada no banco'));
 
     const response = await asOwner(request(createApp()).post('/api/v1/boxes/100/unarchive'));
 
     expect(response.status).toBe(500);
-    expect(db.boxes[0].archived).toBe(1);
-    expect(db.reviewReports.map((r) => r.archived)).toEqual([1, 1]);
+    expect(db.boxes[0].archived).toBe(true);
+    expect(db.reviewReports.map((r) => r.archived)).toEqual([true, true]);
+  });
+});
+
+describe('listagens escondem o que está arquivado', () => {
+  it('sem includeArchived, só aparecem caixas, revisões e manejos ativos', async () => {
+    db.boxes.push({ id: 101, apiary_id: 10, user_id: OWNER, name: 'Caixa arquivada', position: 2, archived: true, created_at: created, updated_at: created });
+    db.reviewReports[1].archived = true;
+    db.manejos[1].archived = true;
+    const app = createApp();
+
+    const boxes = await asOwner(request(app).get('/api/v1/boxes?apiaryId=10'));
+    const reviews = await asOwner(request(app).get('/api/v1/revisions?apiaryId=10'));
+    const manejos = await asOwner(request(app).get('/api/v1/manejos?apiaryId=10'));
+    const allBoxes = await asOwner(request(app).get('/api/v1/boxes?apiaryId=10&includeArchived=true'));
+
+    expect(boxes.body.map((b: { id: number }) => b.id)).toEqual([100]);
+    expect(reviews.body.map((r: { id: number }) => r.id)).toEqual([200]);
+    expect(manejos.body.map((m: { id: number }) => m.id)).toEqual([300]);
+    expect(allBoxes.body.map((b: { id: number }) => b.id).sort()).toEqual([100, 101]);
+    expect(allBoxes.body.find((b: { id: number }) => b.id === 101).archived).toBe(true);
+  });
+
+  it('a contagem de caixas do apiário ignora as arquivadas', async () => {
+    db.boxes.push({ id: 101, apiary_id: 10, user_id: OWNER, name: 'Caixa arquivada', position: 2, archived: true, created_at: created, updated_at: created });
+
+    const response = await asOwner(request(createApp()).get('/api/v1/apiaries'));
+
+    expect(response.body[0].boxCount).toBe(1);
   });
 });

@@ -14,7 +14,7 @@ function mapPrismaNotification(n: any): NotificationRecord {
     title: n.title,
     subtitle: n.subtitle,
     createdAt: n.created_at instanceof Date ? n.created_at.toISOString() : String(n.created_at),
-    read: n.read === 1,
+    read: Boolean(n.read),
   };
 }
 
@@ -57,7 +57,7 @@ export async function createNotification(
     data: {
       title: params.title.trim(),
       subtitle: params.subtitle.trim(),
-      read: 0,
+      read: false,
       user_id: userId ?? null,
     },
   });
@@ -69,7 +69,7 @@ export async function markNotificationAsRead(id: number, userId?: number): Promi
   if (!userId) return;
   await prisma.notification.updateMany({
     where: { id, user_id: userId },
-    data: { read: 1 },
+    data: { read: true },
   });
 }
 
@@ -77,6 +77,6 @@ export async function markAllNotificationsAsRead(userId?: number): Promise<void>
   if (!userId) return;
   await prisma.notification.updateMany({
     where: { user_id: userId },
-    data: { read: 1 },
+    data: { read: true },
   });
 }

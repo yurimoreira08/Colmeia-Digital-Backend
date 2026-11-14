@@ -11,7 +11,7 @@ function mapPrismaBox(b: any): Box {
     position: b.position,
     createdAt: b.created_at instanceof Date ? b.created_at.toISOString() : String(b.created_at),
     updatedAt: b.updated_at instanceof Date ? b.updated_at.toISOString() : String(b.updated_at),
-    archived: !!b.archived,
+    archived: Boolean(b.archived),
   };
 }
 
@@ -32,7 +32,7 @@ export async function listBoxes(
   if (params?.showAll) {
     // Não filtra por arquivado
   } else if (!params?.includeArchived) {
-    where.archived = 0;
+    where.archived = false;
   }
 
   if (params?.apiaryId) {
@@ -92,7 +92,7 @@ export async function createBox(
   const existingBox = await prisma.box.findFirst({
     where: {
       apiary_id: params.apiaryId,
-      archived: 0,
+      archived: false,
       OR: [
         { name: { equals: trimmedName, mode: 'insensitive' } },
         { position: params.position },
@@ -195,9 +195,9 @@ export async function archiveBoxRepository(boxId: number, userId?: number): Prom
   await prisma.$transaction(async (tx) => {
     if (!(await isBoxOwnedBy(tx, boxId, userId))) return;
 
-    await tx.box.updateMany({ where: { id: boxId }, data: { archived: 1 } });
-    await tx.reviewReport.updateMany({ where: { caixa_id: boxId }, data: { archived: 1 } });
-    await tx.manejo.updateMany({ where: { caixa_id: boxId }, data: { archived: 1 } });
+    await tx.box.updateMany({ where: { id: boxId }, data: { archived: true } });
+    await tx.reviewReport.updateMany({ where: { caixa_id: boxId }, data: { archived: true } });
+    await tx.manejo.updateMany({ where: { caixa_id: boxId }, data: { archived: true } });
   });
 }
 
@@ -206,9 +206,9 @@ export async function unarchiveBoxRepository(boxId: number, userId?: number): Pr
   await prisma.$transaction(async (tx) => {
     if (!(await isBoxOwnedBy(tx, boxId, userId))) return;
 
-    await tx.box.updateMany({ where: { id: boxId }, data: { archived: 0 } });
-    await tx.reviewReport.updateMany({ where: { caixa_id: boxId }, data: { archived: 0 } });
-    await tx.manejo.updateMany({ where: { caixa_id: boxId }, data: { archived: 0 } });
+    await tx.box.updateMany({ where: { id: boxId }, data: { archived: false } });
+    await tx.reviewReport.updateMany({ where: { caixa_id: boxId }, data: { archived: false } });
+    await tx.manejo.updateMany({ where: { caixa_id: boxId }, data: { archived: false } });
   });
 }
 

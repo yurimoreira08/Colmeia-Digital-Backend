@@ -31,7 +31,7 @@ export async function listApiaries(userId?: number): Promise<Apiary[]> {
       _count: {
         select: {
           boxes: {
-            where: { archived: 0 },
+            where: { archived: false },
           },
         },
       },
@@ -57,7 +57,7 @@ export async function getApiaryById(id: number, userId?: number): Promise<Apiary
       _count: {
         select: {
           boxes: {
-            where: { archived: 0 },
+            where: { archived: false },
           },
         },
       },

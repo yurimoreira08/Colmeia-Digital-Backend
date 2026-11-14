@@ -27,16 +27,16 @@ function seed(): FakeDb {
       { id: 20, user_id: INTRUDER, name: 'Apiário do B', location: 'Picos', box_count: 1, description: '', created_at: created, updated_at: created },
     ],
     boxes: [
-      { id: 100, apiary_id: 10, user_id: OWNER, name: 'Caixa A1', position: 1, archived: 0, created_at: created, updated_at: created },
-      { id: 110, apiary_id: 20, user_id: INTRUDER, name: 'Caixa B1', position: 1, archived: 0, created_at: created, updated_at: created },
+      { id: 100, apiary_id: 10, user_id: OWNER, name: 'Caixa A1', position: 1, archived: false, created_at: created, updated_at: created },
+      { id: 110, apiary_id: 20, user_id: INTRUDER, name: 'Caixa B1', position: 1, archived: false, created_at: created, updated_at: created },
     ],
     reviewReports: [
-      { id: 200, client_uuid: 'uuid-revisao-da-a', user_id: OWNER, apiary_id: 10, apiary_name: 'Apiário da A', caixa_id: 100, caixa_name: 'Caixa A1', tipo: 'apiario', checked_options: '["rainha"]', observacoes: 'segredo da A', indicacoes: '', archived: 0, created_at: created, updated_at: created },
+      { id: 200, client_uuid: 'uuid-revisao-da-a', user_id: OWNER, apiary_id: 10, apiary_name: 'Apiário da A', caixa_id: 100, caixa_name: 'Caixa A1', tipo: 'apiario', checked_options: '["rainha"]', observacoes: 'segredo da A', indicacoes: '', archived: false, created_at: created, updated_at: created },
     ],
     manejos: [
-      { id: 300, client_uuid: 'uuid-manejo-da-a', user_id: OWNER, apiary_id: 10, apiary_name: 'Apiário da A', caixa_id: 100, caixa_name: 'Caixa A1', tipo: 'apiario', revisao_id: null, checked_options: '["alimentacao"]', observacoes: 'segredo da A', indicacoes: '', photo_uri: null, archived: 0, created_at: created, updated_at: created },
+      { id: 300, client_uuid: 'uuid-manejo-da-a', user_id: OWNER, apiary_id: 10, apiary_name: 'Apiário da A', caixa_id: 100, caixa_name: 'Caixa A1', tipo: 'apiario', revisao_id: null, checked_options: '["alimentacao"]', observacoes: 'segredo da A', indicacoes: '', photo_uri: null, archived: false, created_at: created, updated_at: created },
     ],
-    notifications: [{ id: 400, user_id: OWNER, title: 'Aviso da A', subtitle: 'segredo da A', read: 0, created_at: created }],
+    notifications: [{ id: 400, user_id: OWNER, title: 'Aviso da A', subtitle: 'segredo da A', read: false, created_at: created }],
   });
 }
 

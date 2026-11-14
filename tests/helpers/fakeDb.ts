@@ -144,10 +144,10 @@ export function useFakeDb(initial: Partial<FakeDb> = {}): FakeDb {
   };
   const timestamps = () => ({ created_at: now(), updated_at: now() });
   bindModel(db, 'apiaries', 'apiary', () => ({ ...timestamps(), description: '', box_count: 0 }));
-  bindModel(db, 'boxes', 'box', () => ({ ...timestamps(), archived: 0, user_id: null }));
-  bindModel(db, 'reviewReports', 'reviewReport', () => ({ ...timestamps(), archived: 0, client_uuid: null }));
-  bindModel(db, 'manejos', 'manejo', () => ({ ...timestamps(), archived: 0, client_uuid: null, photo_uri: null, revisao_id: null }));
-  bindModel(db, 'notifications', 'notification', () => ({ created_at: now(), read: 0 }));
+  bindModel(db, 'boxes', 'box', () => ({ ...timestamps(), archived: false, user_id: null }));
+  bindModel(db, 'reviewReports', 'reviewReport', () => ({ ...timestamps(), archived: false, client_uuid: null }));
+  bindModel(db, 'manejos', 'manejo', () => ({ ...timestamps(), archived: false, client_uuid: null, photo_uri: null, revisao_id: null }));
+  bindModel(db, 'notifications', 'notification', () => ({ created_at: now(), read: false }));
   // $transaction com rollback de verdade: se algo falha no meio, as tabelas
   // voltam ao estado anterior, como no Postgres.
   prismaMock.$transaction.mockImplementation(async (arg: unknown) => {

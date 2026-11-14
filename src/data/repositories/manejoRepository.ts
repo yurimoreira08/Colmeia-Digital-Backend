@@ -27,7 +27,7 @@ function mapPrismaManejo(m: any): ManejoReport {
     indicacoes: m.indicacoes || '',
     photoUri: m.photo_uri ?? undefined,
     createdAt: m.created_at instanceof Date ? m.created_at.toISOString() : String(m.created_at),
-    archived: !!m.archived,
+    archived: Boolean(m.archived),
   };
 }
 
@@ -99,7 +99,7 @@ export async function listManejos(
   };
 
   if (!params?.includeArchived) {
-    where.archived = 0;
+    where.archived = false;
   }
 
   if (params?.tipo) {
@@ -177,7 +177,7 @@ export async function archiveManejoRepository(id: number, userId?: number): Prom
 
   await prisma.manejo.updateMany({
     where,
-    data: { archived: 1 },
+    data: { archived: true },
   });
 }
 
@@ -193,6 +193,6 @@ export async function unarchiveManejoRepository(id: number, userId?: number): Pr
 
   await prisma.manejo.updateMany({
     where,
-    data: { archived: 0 },
+    data: { archived: false },
   });
 }

@@ -22,7 +22,7 @@ function mapPrismaReview(r: any): ReviewReport {
     observacoes: r.observacoes || '',
     indicacoes: r.indicacoes || '',
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
-    archived: !!r.archived,
+    archived: Boolean(r.archived),
   };
 }
 
@@ -90,7 +90,7 @@ export async function listReviewReports(
   };
 
   if (!params?.includeArchived) {
-    where.archived = 0;
+    where.archived = false;
   }
 
   if (params?.tipo) {
@@ -162,7 +162,7 @@ export async function archiveReviewReport(id: number, userId?: number): Promise<
 
   await prisma.reviewReport.updateMany({
     where,
-    data: { archived: 1 },
+    data: { archived: true },
   });
 }
 
@@ -178,6 +178,6 @@ export async function unarchiveReviewReport(id: number, userId?: number): Promis
 
   await prisma.reviewReport.updateMany({
     where,
-    data: { archived: 0 },
+    data: { archived: false },
   });
 }

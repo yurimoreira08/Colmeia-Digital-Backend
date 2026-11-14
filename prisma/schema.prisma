@@ -1,3 +1,8 @@
+// Schema do banco (PostgreSQL / Supabase). Mudanças aqui viram migrations em
+// prisma/migrations: rode `npm run db:migrate:create` contra um banco local,
+// revise o SQL gerado e aplique em produção com `npm run db:migrate:deploy`
+// (sempre depois de scripts/backup-db.ps1). Nunca use `prisma db push`.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -22,6 +27,7 @@ model User {
   sessions        Session[]
   apiaries        Apiary[]
   password_resets PasswordReset[]
+  notifications   Notification[]
 
   @@map("users")
 }
@@ -58,6 +64,7 @@ model Session {
   @@map("sessions")
 }
 
+/// O dono do apiário é dono de tudo que está nele (caixas, revisões, manejos).
 model Apiary {
   id          Int      @id @default(autoincrement())
   user_id     Int
@@ -68,8 +75,10 @@ model Apiary {
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
-  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  boxes       Box[]
+  user           User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  boxes          Box[]
+  review_reports ReviewReport[]
+  manejos        Manejo[]
 
   @@index([user_id])
   @@map("apiaries")
@@ -81,11 +90,13 @@ model Box {
   user_id    Int?
   name       String
   position   Int
-  archived   Int      @default(0)
+  archived   Boolean  @default(false)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  apiary     Apiary   @relation(fields: [apiary_id], references: [id], onDelete: Cascade)
+  apiary         Apiary         @relation(fields: [apiary_id], references: [id], onDelete: Cascade)
+  review_reports ReviewReport[]
+  manejos        Manejo[]
 
   @@index([apiary_id, archived])
   @@index([user_id])
@@ -104,9 +115,13 @@ model ReviewReport {
   checked_options String
   observacoes     String?
   indicacoes      String?
-  archived        Int      @default(0)
+  archived        Boolean  @default(false)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
+
+  box     Box      @relation(fields: [caixa_id], references: [id], onDelete: Cascade)
+  apiary  Apiary?  @relation(fields: [apiary_id], references: [id], onDelete: Cascade)
+  manejos Manejo[]
 
   @@index([apiary_id, caixa_id])
   @@index([user_id])
@@ -128,13 +143,19 @@ model Manejo {
   observacoes     String?
   indicacoes      String?
   photo_uri       String?
-  archived        Int      @default(0)
+  archived        Boolean  @default(false)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
+
+  box     Box           @relation(fields: [caixa_id], references: [id], onDelete: Cascade)
+  apiary  Apiary?       @relation(fields: [apiary_id], references: [id], onDelete: Cascade)
+  /// Se a revisão de origem for excluída, o manejo fica e só perde o vínculo.
+  revisao ReviewReport? @relation(fields: [revisao_id], references: [id], onDelete: SetNull)
 
   @@index([apiary_id, caixa_id])
   @@index([user_id])
   @@index([created_at])
+  @@index([revisao_id])
   @@map("manejos")
 }
 
@@ -143,8 +164,10 @@ model Notification {
   user_id    Int?
   title      String
   subtitle   String
-  read       Int      @default(0)
+  read       Boolean  @default(false)
   created_at DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@map("notifications")

@@ -18,7 +18,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
   useFakeDb({
     apiaries: [{ id: 10, user_id: USER_ID, name: 'Sede', location: 'Teresina', box_count: 1, description: '', created_at: created, updated_at: created }],
-    boxes: [{ id: 100, apiary_id: 10, user_id: USER_ID, name: 'Caixa 01', position: 1, archived: 0, created_at: created, updated_at: created }],
+    boxes: [{ id: 100, apiary_id: 10, user_id: USER_ID, name: 'Caixa 01', position: 1, archived: false, created_at: created, updated_at: created }],
   });
 });
 
