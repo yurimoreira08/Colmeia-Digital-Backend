@@ -23,7 +23,8 @@ src/errors/AppError.ts   AppError (mensagem para o usuário + status) e NotFound
 src/middlewares/         auth, validate (Zod → 422), authorize (posse por rota), rateLimit, errorHandler
 src/validators/          schemas Zod por domínio (*.schema.ts)
 src/routes/              api.routes.ts (todas as rotas), reports.routes.ts, index.ts (/health)
-src/controllers/         api.controller.ts (quase tudo), reports.controller.ts
+src/controllers/         um arquivo por domínio (auth, apiary, box, revision, manejo, notification,
+                         upload, sync, reports); api.controller.ts só reexporta para api.routes.ts
 src/services/            regras de negócio (authService, apiaryService, boxService, manejoService, ...)
 src/data/repositories/   acesso ao Prisma + mapeamento snake_case (banco) → camelCase (API);
                          ownershipRepository concentra a regra de posse

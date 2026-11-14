@@ -102,7 +102,7 @@ describe('compatibilidade com o que o app envia hoje (sync offline)', () => {
       tipo: 'apiario', checkedOptions: ['rainha', 'postura'], observacoes: null, indicacoes: null,
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
     expect(response.body).toEqual({ success: true, id: expect.any(Number) });
   });
 
@@ -112,19 +112,19 @@ describe('compatibilidade com o que o app envia hoje (sync offline)', () => {
       revisaoId: null, checkedOptions: [{ id: 'alimentacao', obs: '', ind: '' }], observacoes: null, indicacoes: null, photoUri: null,
     });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
   });
 
   it('aceita apiário com boxCount em texto e descrição nula', async () => {
     const response = await asUser(api().post('/api/v1/apiaries')).send({ name: 'Novo', location: 'Picos', boxCount: '4', description: null });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
   });
 
   it('aceita criação de caixa com posição', async () => {
     const response = await asUser(api().post('/api/v1/boxes')).send({ apiaryId: 10, name: 'Caixa 02', position: 2 });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
   });
 
   it('aceita aceite de termos sem corpo', async () => {

@@ -1,6 +1,8 @@
+import type { NextFunction, Request, Response } from 'express';
+import { AppError } from '../errors/AppError.js';
 import { authenticateToken } from '../services/authService.js';
 
-export async function parseUserId(req: any, _res: any, next: any): Promise<void> {
+export async function parseUserId(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'] || req.headers['Authorization'];
 
   if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
@@ -19,7 +21,7 @@ export async function parseUserId(req: any, _res: any, next: any): Promise<void>
   next();
 }
 
-export function requireAuth(req: any, res: any, next: any): any {
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (req.method === 'OPTIONS') {
     return next();
   }
@@ -29,8 +31,19 @@ export function requireAuth(req: any, res: any, next: any): any {
   const isPublic = publicPaths.some((p) => req.path.endsWith(p));
 
   if (!isPublic && req.userId === undefined) {
-    return res.status(401).json({ message: 'Não autorizado. Usuário não identificado ou sessão expirada.' });
+    res.status(401).json({ message: 'Não autorizado. Usuário não identificado ou sessão expirada.' });
+    return;
   }
 
   next();
+}
+
+/**
+ * Id do usuário logado numa rota protegida. O `requireAuth` já barrou quem
+ * não tem sessão; isto só dá o tipo certo e protege contra uma rota pública
+ * que use dados do usuário por engano.
+ */
+export function authenticatedUserId(req: Request): number {
+  if (req.userId === undefined) throw new AppError('Não autorizado. Usuário não identificado.', 401);
+  return req.userId;
 }

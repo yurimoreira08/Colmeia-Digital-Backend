@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import multer from 'multer';
 import * as apiController from '../controllers/api.controller.js';
 import * as syncController from '../controllers/sync.controller.js';
@@ -47,10 +47,16 @@ router.post('/auth/login', validate({ body: loginBodySchema }), apiController.lo
 router.get('/auth/me', apiController.meController);
 router.post('/auth/logout', apiController.logoutController);
 router.put('/auth/profile', validate({ body: updateProfileBodySchema }), apiController.updateProfileController);
-// Três rotas para o mesmo aceite: versões diferentes do app usam cada uma.
+// Aceite dos termos: o app atual usa o PATCH. Os dois POST ficam para versões antigas
+// instaladas e respondem com o cabeçalho Deprecation apontando para o PATCH.
+const deprecatedTermsRoute: RequestHandler = (_req, res, next) => {
+  res.set('Deprecation', 'true');
+  res.set('Link', '</api/v1/auth/accept-terms>; rel="successor-version"');
+  next();
+};
 router.patch('/auth/accept-terms', validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
-router.post('/auth/accept-terms', validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
-router.post('/auth/terms', validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
+router.post('/auth/accept-terms', deprecatedTermsRoute, validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
+router.post('/auth/terms', deprecatedTermsRoute, validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
 router.post('/auth/forgot-password', validate({ body: forgotPasswordBodySchema }), apiController.forgotPasswordController);
 router.post('/auth/reset-password', validate({ body: resetPasswordBodySchema }), apiController.resetPasswordController);
 

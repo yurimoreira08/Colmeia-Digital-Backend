@@ -47,7 +47,7 @@ describe('respostas de autenticação não expõem o hash da senha', () => {
       .post('/api/v1/auth/register')
       .send({ name: 'Nova Pessoa', email: 'nova@example.com', password: TEST_PASSWORD });
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(201);
     expect(typeof response.body.token).toBe('string');
     expectNoPasswordHash(response.body);
   });
