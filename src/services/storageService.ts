@@ -50,12 +50,39 @@ function getSupabaseClient(): SupabaseClient {
   return cachedClient;
 }
 
+/** Pastas permitidas no bucket. A pasta vem do cliente, então é sempre normalizada para uma destas. */
+export type StorageFolder = 'manejos' | 'profiles' | 'geral';
+
+/** Tamanho máximo de imagem aceito, igual ao limite do multer em `api.routes.ts`. */
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Tipos de imagem aceitos e a extensão usada no nome do arquivo salvo. */
+const ALLOWED_IMAGE_TYPES = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+} as const;
+
+type AllowedImageMime = keyof typeof ALLOWED_IMAGE_TYPES;
+
+/**
+ * Erro de imagem enviada pelo cliente (tipo ou tamanho inválido).
+ * O controller devolve 400 com a mensagem deste erro. Qualquer outro erro
+ * vira 500 com mensagem genérica, para não expor detalhes do Supabase.
+ */
+export class InvalidImageError extends Error {}
+
 export interface UploadImageParams {
   userId: number;
-  folder: 'manejos' | 'profiles' | 'geral';
+  folder: StorageFolder;
+  /** Imagem em base64, com ou sem o prefixo `data:<mime>;base64,`. */
   base64Data: string;
-  mimeType?: string;
-  fileName?: string;
+}
+
+export interface UploadBufferParams {
+  userId: number;
+  folder: StorageFolder;
+  buffer: Buffer;
 }
 
 export interface UploadResult {
@@ -64,118 +91,95 @@ export interface UploadResult {
 }
 
 /**
- * Envia uma imagem codificada em base64 para o Supabase Storage
+ * Descobre o tipo real da imagem pelos primeiros bytes (magic bytes).
+ * O MIME e a extensão informados pelo cliente não são confiáveis: sem esta
+ * checagem seria possível publicar HTML/SVG com script no bucket público.
  */
-export async function uploadImageToStorage(params: UploadImageParams): Promise<UploadResult> {
-  const { userId, folder, base64Data, mimeType, fileName } = params;
+function detectImageMime(buffer: Buffer): AllowedImageMime | null {
+  const isJpeg = buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (isJpeg) return 'image/jpeg';
 
-  if (!base64Data) {
-    throw new Error('Nenhum dado de imagem fornecido para upload.');
-  }
+  const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const isPng = buffer.length >= 8 && buffer.subarray(0, 8).equals(pngSignature);
+  if (isPng) return 'image/png';
 
-  const client = getSupabaseClient();
-  const bucketName = (env.SUPABASE_BUCKET_NAME || process.env.SUPABASE_BUCKET_NAME || 'colmeia-digital').trim();
+  const isWebp =
+    buffer.length >= 12 &&
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP';
+  if (isWebp) return 'image/webp';
 
-  // Detectar MIME type e limpar prefixo base64 se presente
-  let cleanBase64 = base64Data;
-  let detectedMime = mimeType || 'image/jpeg';
-
-  const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-  if (matches && matches.length === 3) {
-    detectedMime = matches[1];
-    cleanBase64 = matches[2];
-  }
-
-  const extension = detectedMime.split('/')[1] || 'jpg';
-  const fileBuffer = Buffer.from(cleanBase64, 'base64');
-  const fileData = new Uint8Array(fileBuffer);
-
-  // Gerar nome de arquivo seguro e único
-  const uniqueId = randomUUID().replace(/-/g, '').slice(0, 12);
-  const timestamp = Date.now();
-  const safeFileName = fileName
-    ? `${timestamp}_${uniqueId}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '')}`
-    : `${timestamp}_${uniqueId}.${extension}`;
-
-  const filePath = `${folder}/${userId}/${safeFileName}`;
-
-  console.log(`[StorageService] Enviando para bucket "${bucketName}" caminho "${filePath}" (${fileData.length} bytes)...`);
-
-  const { error: uploadError } = await client.storage
-    .from(bucketName)
-    .upload(filePath, fileData, {
-      contentType: detectedMime,
-      upsert: true,
-    });
-
-  if (uploadError) {
-    console.error('[StorageService] Erro detalhado no upload para Supabase:', uploadError);
-    throw new Error(`Falha no upload para o Supabase Storage: ${uploadError.message || JSON.stringify(uploadError)}`);
-  }
-
-  const { data } = client.storage.from(bucketName).getPublicUrl(filePath);
-
-  console.log(`[StorageService] Upload concluído com sucesso. URL: ${data.publicUrl}`);
-
-  return {
-    url: data.publicUrl,
-    path: filePath,
-  };
-}
-
-export interface UploadBufferParams {
-  userId: number;
-  folder: 'manejos' | 'profiles' | 'geral';
-  buffer: Buffer;
-  mimeType: string;
-  fileName?: string;
+  return null;
 }
 
 /**
- * Envia um Buffer de arquivo (ex: recebido via multipart/form-data) para o Supabase Storage
+ * Envia uma imagem codificada em base64 para o Supabase Storage.
+ * Usado pela foto de perfil (`POST /upload`). Decodifica e reaproveita
+ * `uploadBufferToStorage`, que faz toda a validação.
+ */
+export async function uploadImageToStorage(params: UploadImageParams): Promise<UploadResult> {
+  const { userId, folder, base64Data } = params;
+
+  if (!base64Data) {
+    throw new InvalidImageError('Nenhum dado de imagem fornecido para upload.');
+  }
+
+  // Descarta o prefixo "data:<mime>;base64," se houver; o tipo é detectado pelos bytes.
+  const commaIndex = base64Data.indexOf(',');
+  const cleanBase64 = base64Data.startsWith('data:') && commaIndex >= 0
+    ? base64Data.slice(commaIndex + 1)
+    : base64Data;
+
+  const buffer = Buffer.from(cleanBase64, 'base64');
+  return uploadBufferToStorage({ userId, folder, buffer });
+}
+
+/**
+ * Valida e envia uma imagem para o Supabase Storage (bucket público).
+ *
+ * Regras: só JPEG, PNG ou WEBP (verificado pelo conteúdo), até 5 MB, e o
+ * caminho é sempre `<pasta>/<userId>/<timestamp>_<id>.<ext>`, gerado no
+ * servidor. O nome enviado pelo cliente é ignorado e nunca há sobrescrita.
+ *
+ * @throws InvalidImageError se a imagem for vazia, grande demais ou de tipo não permitido.
  */
 export async function uploadBufferToStorage(params: UploadBufferParams): Promise<UploadResult> {
-  const { userId, folder, buffer, mimeType, fileName } = params;
+  const { userId, folder, buffer } = params;
 
   if (!buffer || buffer.length === 0) {
-    throw new Error('Nenhum buffer de imagem fornecido para upload.');
+    throw new InvalidImageError('Nenhuma imagem enviada.');
+  }
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    throw new InvalidImageError('A imagem deve ter no máximo 5MB.');
+  }
+
+  const mimeType = detectImageMime(buffer);
+  if (!mimeType) {
+    throw new InvalidImageError('Tipo de arquivo inválido. Permitido apenas JPEG, PNG e WEBP.');
   }
 
   const client = getSupabaseClient();
-  const bucketName = (env.SUPABASE_BUCKET_NAME || process.env.SUPABASE_BUCKET_NAME || 'colmeia-digital').trim();
-
-  let extension = mimeType.split('/')[1] || 'jpg';
-  if (extension === 'jpeg') extension = 'jpg';
+  const bucketName = (env.SUPABASE_BUCKET_NAME || 'colmeia-digital').trim();
 
   const uniqueId = randomUUID().replace(/-/g, '').slice(0, 12);
-  const timestamp = Date.now();
-  const safeFileName = fileName
-    ? `${timestamp}_${uniqueId}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '')}`
-    : `${timestamp}_${uniqueId}.${extension}`;
-
-  const filePath = `${folder}/${userId}/${safeFileName}`;
-
-  console.log(`[StorageService] Enviando buffer para bucket "${bucketName}" caminho "${filePath}" (${buffer.length} bytes, MIME: ${mimeType})...`);
+  const filePath = `${folder}/${userId}/${Date.now()}_${uniqueId}.${ALLOWED_IMAGE_TYPES[mimeType]}`;
 
   const { error: uploadError } = await client.storage
     .from(bucketName)
     .upload(filePath, buffer, {
       contentType: mimeType,
-      upsert: true,
+      upsert: false,
     });
 
   if (uploadError) {
-    console.error('[StorageService] Erro no upload do buffer para Supabase:', uploadError);
-    throw new Error(`Falha no upload para o Supabase Storage: ${uploadError.message || JSON.stringify(uploadError)}`);
+    console.error('[StorageService] Erro no upload para o Supabase:', uploadError.message);
+    throw new Error('Falha no upload para o Supabase Storage.');
   }
 
   const { data } = client.storage.from(bucketName).getPublicUrl(filePath);
-
-  console.log(`[StorageService] Upload de buffer concluído com sucesso. URL: ${data.publicUrl}`);
 
   return {
     url: data.publicUrl,
     path: filePath,
   };
 }
-

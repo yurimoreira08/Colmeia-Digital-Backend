@@ -380,77 +380,77 @@ export async function markAllNotificationsReadController(req: any, res: any): Pr
 
 // --- STORAGE / UPLOAD CONTROLLERS ---
 
+/**
+ * Responde a uma falha de upload: 400 com a mensagem quando o problema é a
+ * imagem enviada, 500 genérico para o resto (sem expor detalhes do Supabase).
+ */
+function sendUploadError(res: any, error: unknown, logTag: string): void {
+  if (error instanceof storageService.InvalidImageError) {
+    res.status(400).json({ message: error.message });
+    return;
+  }
+  console.error(`[${logTag}] Falha:`, error instanceof Error ? error.message : error);
+  res.status(500).json({ message: 'Erro ao realizar upload de imagem.' });
+}
+
+/**
+ * Upload de imagem em base64 (usado pela foto de perfil).
+ * Endpoint: POST /upload — body `{ base64Data, folder }`.
+ */
 export async function uploadController(req: any, res: any): Promise<void> {
   try {
-    const { base64Data, folder, mimeType, fileName } = req.body;
+    const userId = req.userId;
+    if (!userId) {
+      res.status(401).json({ message: 'Autenticação necessária para upload de imagens.' });
+      return;
+    }
 
-    if (!base64Data) {
+    const { base64Data, folder } = req.body || {};
+    if (!base64Data || typeof base64Data !== 'string') {
       res.status(400).json({ message: 'Nenhum dado de imagem (base64) enviado.' });
       return;
     }
 
-    const targetFolder = folder === 'profiles' ? 'profiles' : folder === 'manejos' ? 'manejos' : 'geral';
-    const userId = req.userId || 0;
+    const targetFolder: storageService.StorageFolder =
+      folder === 'profiles' ? 'profiles' : folder === 'manejos' ? 'manejos' : 'geral';
 
     const result = await storageService.uploadImageToStorage({
       userId,
       folder: targetFolder,
       base64Data,
-      mimeType,
-      fileName,
     });
 
-    res.status(200).json({
-      success: true,
-      url: result.url,
-      path: result.path,
-    });
+    res.status(200).json({ success: true, url: result.url, path: result.path });
   } catch (error) {
-    console.error('[UploadController] Falha:', error);
-    res.status(500).json({
-      message: error instanceof Error ? error.message : 'Erro ao realizar upload de imagem.',
-    });
+    sendUploadError(res, error, 'UploadController');
   }
 }
 
 /**
- * Controller para upload multipart/form-data de fotos de manejo
- * Endpoint: POST /upload/manejo-photo
+ * Upload multipart/form-data de fotos de manejo.
+ * Endpoint: POST /upload/manejo-photo — campo `photo`.
  */
 export async function uploadManejoPhotoController(req: any, res: any): Promise<void> {
   try {
-    if (!req.file) {
-      res.status(400).json({ message: 'Nenhuma foto enviada no campo multipart "photo".' });
-      return;
-    }
-
     const userId = req.userId;
     if (!userId) {
       res.status(401).json({ message: 'Autenticação necessária para upload de fotos.' });
       return;
     }
 
-    const { buffer, mimetype, originalname } = req.file;
+    if (!req.file) {
+      res.status(400).json({ message: 'Nenhuma foto enviada no campo multipart "photo".' });
+      return;
+    }
 
     const result = await storageService.uploadBufferToStorage({
       userId,
       folder: 'manejos',
-      buffer,
-      mimeType: mimetype,
-      fileName: originalname,
+      buffer: req.file.buffer,
     });
 
-    res.status(200).json({
-      success: true,
-      url: result.url,
-      path: result.path,
-    });
+    res.status(200).json({ success: true, url: result.url, path: result.path });
   } catch (error) {
-    console.error('[UploadManejoPhotoController] Falha:', error);
-    res.status(500).json({
-      message: error instanceof Error ? error.message : 'Erro ao processar upload da foto de manejo.',
-    });
+    sendUploadError(res, error, 'UploadManejoPhotoController');
   }
 }
-
-
