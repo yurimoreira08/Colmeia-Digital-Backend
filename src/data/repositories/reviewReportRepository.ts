@@ -24,6 +24,7 @@ function mapPrismaReview(r: any): ReviewReport {
     observacoes: r.observacoes || '',
     indicacoes: r.indicacoes || '',
     createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    updatedAt: r.updated_at instanceof Date ? r.updated_at.toISOString() : r.updated_at ? String(r.updated_at) : undefined,
     archived: Boolean(r.archived),
   };
 }

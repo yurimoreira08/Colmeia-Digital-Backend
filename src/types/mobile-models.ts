@@ -10,6 +10,8 @@ export type ReviewReport = {
   observacoes: string;
   indicacoes: string;
   createdAt: string;
+  /** Última alteração no servidor: o app devolve como baseUpdatedAt no POST /sync. */
+  updatedAt?: string;
   archived?: boolean;
 };
 
@@ -34,6 +36,8 @@ export type ManejoReport = {
   indicacoes: string;
   photoUri?: string;
   createdAt: string;
+  /** Última alteração no servidor: o app devolve como baseUpdatedAt no POST /sync. */
+  updatedAt?: string;
   archived?: boolean;
 };
 

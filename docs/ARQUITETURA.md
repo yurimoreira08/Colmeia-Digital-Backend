@@ -132,4 +132,5 @@ As rotas antigas (uma requisição por registro e as listagens completas) contin
   - `conflict`: o registro mudou no servidor depois de `baseUpdatedAt`; nada é gravado e `server` traz a versão atual, que prevalece;
   - `rejected` (não encontrado, de outro usuário, pai recusado, dado inválido) com `message`;
   - `error`: falha inesperada; o app reenvia depois.
+- Apiários, caixas, revisões e manejos trazem `updatedAt` (última alteração no servidor). O app guarda esse valor e o devolve como `baseUpdatedAt` ao enviar uma alteração.
 - As fotos de manejo continuam subindo antes, por `POST /upload/manejo-photo`; no lote vai só a URL.

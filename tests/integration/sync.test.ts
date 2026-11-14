@@ -266,3 +266,14 @@ describe('rotas antigas: client_uuid de outro usuário (S20)', () => {
     expect(JSON.stringify(response.body)).not.toContain('segredo');
   });
 });
+
+describe('updatedAt nas revisões e manejos', () => {
+  it('vem nas listagens e no pull, para o app usar como baseUpdatedAt', async () => {
+    const changes = await as(OWNER, request(createApp()).get('/api/v1/sync/changes'));
+    const revisions = await as(OWNER, request(createApp()).get('/api/v1/revisions').query({ includeArchived: 'true' }));
+
+    expect(changes.body.revisions[0].updatedAt).toBe(created.toISOString());
+    expect(changes.body.manejos[0].updatedAt).toBe(created.toISOString());
+    expect(revisions.body[0].updatedAt).toBe(created.toISOString());
+  });
+});

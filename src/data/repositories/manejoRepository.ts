@@ -29,6 +29,7 @@ function mapPrismaManejo(m: any): ManejoReport {
     indicacoes: m.indicacoes || '',
     photoUri: m.photo_uri ?? undefined,
     createdAt: m.created_at instanceof Date ? m.created_at.toISOString() : String(m.created_at),
+    updatedAt: m.updated_at instanceof Date ? m.updated_at.toISOString() : m.updated_at ? String(m.updated_at) : undefined,
     archived: Boolean(m.archived),
   };
 }
