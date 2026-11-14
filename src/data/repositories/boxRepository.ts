@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import { findOwnedApiaryIds } from './ownershipRepository.js';
 import type { Box } from '../../types/mobile-models.js';
@@ -165,63 +166,51 @@ export async function renameBox(boxId: number, newName: string, userId?: number)
   });
 }
 
+/**
+ * Verdadeiro se a caixa existe e está num apiário do usuário.
+ * Usado pelas operações em cascata antes de mexer nos registros da caixa.
+ */
+async function isBoxOwnedBy(tx: Prisma.TransactionClient, boxId: number, userId?: number): Promise<boolean> {
+  if (!userId) return false;
+  const box = await tx.box.findFirst({ where: { id: boxId, apiary: { user_id: userId } }, select: { id: true } });
+  return Boolean(box);
+}
+
+/**
+ * Exclui a caixa do usuário com as revisões e manejos dela, numa transação.
+ * Registros são apagados por `caixa_id`, sem filtrar por `user_id` (o dono do
+ * apiário é dono de tudo que está nele).
+ */
 export async function removeBox(boxId: number, userId?: number): Promise<void> {
-  const whereReview: any = { caixa_id: boxId };
-  const whereManejo: any = { caixa_id: boxId };
-  const whereBox: any = { id: boxId };
+  await prisma.$transaction(async (tx) => {
+    if (!(await isBoxOwnedBy(tx, boxId, userId))) return;
 
-  if (userId !== undefined) {
-    whereReview.OR = [
-      { user_id: userId },
-      { apiary_id: { in: await findOwnedApiaryIds(userId) } },
-    ];
-    whereManejo.OR = [
-      { user_id: userId },
-      { apiary_id: { in: await findOwnedApiaryIds(userId) } },
-    ];
-    whereBox.OR = [
-      { user_id: userId },
-      { apiary: { user_id: userId } },
-    ];
-  }
-
-  await prisma.reviewReport.deleteMany({ where: whereReview });
-  await prisma.manejo.deleteMany({ where: whereManejo });
-  await prisma.box.deleteMany({ where: whereBox });
+    await tx.manejo.deleteMany({ where: { caixa_id: boxId } });
+    await tx.reviewReport.deleteMany({ where: { caixa_id: boxId } });
+    await tx.box.deleteMany({ where: { id: boxId } });
+  });
 }
 
+/** Arquiva a caixa do usuário e todas as revisões e manejos dela, numa transação. */
 export async function archiveBoxRepository(boxId: number, userId?: number): Promise<void> {
-  const whereReview: any = { caixa_id: boxId };
-  const whereManejo: any = { caixa_id: boxId };
-  const whereBox: any = { id: boxId };
+  await prisma.$transaction(async (tx) => {
+    if (!(await isBoxOwnedBy(tx, boxId, userId))) return;
 
-  if (userId !== undefined) {
-    const userApiaryIds = await findOwnedApiaryIds(userId);
-    whereReview.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
-    whereManejo.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
-    whereBox.OR = [{ user_id: userId }, { apiary: { user_id: userId } }];
-  }
-
-  await prisma.box.updateMany({ where: whereBox, data: { archived: 1 } });
-  await prisma.reviewReport.updateMany({ where: whereReview, data: { archived: 1 } });
-  await prisma.manejo.updateMany({ where: whereManejo, data: { archived: 1 } });
+    await tx.box.updateMany({ where: { id: boxId }, data: { archived: 1 } });
+    await tx.reviewReport.updateMany({ where: { caixa_id: boxId }, data: { archived: 1 } });
+    await tx.manejo.updateMany({ where: { caixa_id: boxId }, data: { archived: 1 } });
+  });
 }
 
+/** Desarquiva a caixa do usuário e todas as revisões e manejos dela, numa transação. */
 export async function unarchiveBoxRepository(boxId: number, userId?: number): Promise<void> {
-  const whereReview: any = { caixa_id: boxId };
-  const whereManejo: any = { caixa_id: boxId };
-  const whereBox: any = { id: boxId };
+  await prisma.$transaction(async (tx) => {
+    if (!(await isBoxOwnedBy(tx, boxId, userId))) return;
 
-  if (userId !== undefined) {
-    const userApiaryIds = await findOwnedApiaryIds(userId);
-    whereReview.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
-    whereManejo.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
-    whereBox.OR = [{ user_id: userId }, { apiary: { user_id: userId } }];
-  }
-
-  await prisma.box.updateMany({ where: whereBox, data: { archived: 0 } });
-  await prisma.reviewReport.updateMany({ where: whereReview, data: { archived: 0 } });
-  await prisma.manejo.updateMany({ where: whereManejo, data: { archived: 0 } });
+    await tx.box.updateMany({ where: { id: boxId }, data: { archived: 0 } });
+    await tx.reviewReport.updateMany({ where: { caixa_id: boxId }, data: { archived: 0 } });
+    await tx.manejo.updateMany({ where: { caixa_id: boxId }, data: { archived: 0 } });
+  });
 }
 
 export async function getBoxById(id: number, userId?: number): Promise<Box | null> {

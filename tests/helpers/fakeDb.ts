@@ -148,8 +148,18 @@ export function useFakeDb(initial: Partial<FakeDb> = {}): FakeDb {
   bindModel(db, 'reviewReports', 'reviewReport', () => ({ ...timestamps(), archived: 0, client_uuid: null }));
   bindModel(db, 'manejos', 'manejo', () => ({ ...timestamps(), archived: 0, client_uuid: null, photo_uri: null, revisao_id: null }));
   bindModel(db, 'notifications', 'notification', () => ({ created_at: now(), read: 0 }));
-  prismaMock.$transaction.mockImplementation(async (arg: unknown) =>
-    typeof arg === 'function' ? (arg as (tx: unknown) => unknown)(prismaMock) : Promise.all(arg as unknown[]),
-  );
+  // $transaction com rollback de verdade: se algo falha no meio, as tabelas
+  // voltam ao estado anterior, como no Postgres.
+  prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
+    const snapshot = structuredClone(db);
+    try {
+      return typeof arg === 'function' ? await (arg as (tx: unknown) => unknown)(prismaMock) : await Promise.all(arg as unknown[]);
+    } catch (error) {
+      for (const key of Object.keys(db) as Array<keyof FakeDb>) {
+        db[key].splice(0, db[key].length, ...snapshot[key]);
+      }
+      throw error;
+    }
+  });
   return db;
 }

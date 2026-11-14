@@ -154,28 +154,25 @@ export async function updateApiary(
   return getApiaryById(id, userId);
 }
 
+/**
+ * Exclui o apiário do usuário com as caixas, revisões e manejos dele, numa
+ * transação (tudo ou nada).
+ *
+ * Os registros são apagados por `apiary_id`, sem filtrar por `user_id`: o
+ * dono do apiário é dono de tudo que está nele (registros antigos podem ter
+ * `user_id` nulo e, antes, sobravam como órfãos). Sem usuário ou se o
+ * apiário não for dele, não apaga nada.
+ */
 export async function deleteApiary(id: number, userId?: number): Promise<void> {
-  const where: any = { id };
-  if (userId !== undefined) {
-    where.user_id = userId;
-  }
+  if (!userId) return;
 
-  // Deleta revisões e manejos do apiário
-  await prisma.reviewReport.deleteMany({
-    where: {
-      apiary_id: id,
-      ...(userId !== undefined ? { user_id: userId } : {}),
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    const owned = await tx.apiary.findFirst({ where: { id, user_id: userId }, select: { id: true } });
+    if (!owned) return;
 
-  await prisma.manejo.deleteMany({
-    where: {
-      apiary_id: id,
-      ...(userId !== undefined ? { user_id: userId } : {}),
-    },
-  });
-
-  await prisma.apiary.deleteMany({
-    where,
+    await tx.manejo.deleteMany({ where: { apiary_id: id } });
+    await tx.reviewReport.deleteMany({ where: { apiary_id: id } });
+    await tx.box.deleteMany({ where: { apiary_id: id } });
+    await tx.apiary.deleteMany({ where: { id, user_id: userId } });
   });
 }
