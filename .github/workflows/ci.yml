@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualidade:
+    name: Tipos, lint, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Auditoria de dependências de produção (falha em high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+  migrations:
+    name: Migrations reproduzem o schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: colmeia
+          POSTGRES_PASSWORD: colmeia
+          POSTGRES_DB: colmeia_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U colmeia -d colmeia_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://colmeia:colmeia@localhost:5432/colmeia_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Aplica todas as migrations num banco vazio
+        run: npx prisma migrate deploy
+      - name: Banco resultante é igual ao schema.prisma
+        run: |
+          diff_sql=$(npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script)
+          if echo "$diff_sql" | grep -vE '^-- This is an empty migration|^$' | grep -q .; then
+            echo "As migrations não reproduzem o schema.prisma:"
+            echo "$diff_sql"
+            exit 1
+          fi
