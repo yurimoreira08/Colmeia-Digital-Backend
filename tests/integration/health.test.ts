@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/data/prisma.js', () => import('../helpers/prismaMock.js'));
 
@@ -62,5 +62,26 @@ describe('GET /api/v1/health/client-ip', () => {
       .set('X-Forwarded-For', '203.0.113.9, 2606:4700::1, 10.28.177.20');
 
     expect(response.body).toEqual({ ip: '203.0.113.9' });
+  });
+});
+
+describe('GET /api/v1/health', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('informa o commit em produção (RENDER_GIT_COMMIT), para saber qual versão está no ar', async () => {
+    vi.stubEnv('RENDER_GIT_COMMIT', '86ec5153f0a9b1c2d3e4f5a6b7c8d9e0f1a2b3c4');
+
+    const response = await request(createApp()).get('/api/v1/health');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ status: 'ok', version: '86ec515' });
+  });
+
+  it('usa "local" fora do Render', async () => {
+    vi.stubEnv('RENDER_GIT_COMMIT', '');
+
+    const response = await request(createApp()).get('/api/v1/health');
+
+    expect(response.body.version).toBe('local');
   });
 });
