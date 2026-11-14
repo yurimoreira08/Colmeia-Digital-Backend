@@ -104,6 +104,13 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
     }
   }
 
+  // Havia provedor configurado e ele falhou (os erros já foram registrados acima):
+  // informa a falha em vez de cair no modo de desenvolvimento.
+  const hasProviderConfigured = Boolean(resendApiKey) || Boolean(smtpHost && smtpUser && smtpPass);
+  if (hasProviderConfigured) {
+    return false;
+  }
+
   // 3. Sem provedor configurado
   if (isProductionRuntime()) {
     console.error('[EMAIL] Nenhum provedor de e-mail configurado (RESEND_API_KEY ou SMTP_*). E-mail não enviado.');
