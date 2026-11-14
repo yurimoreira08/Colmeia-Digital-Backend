@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import { parseTrustProxy } from './trustedProxies.js';
 
 dotenv.config();
 
@@ -20,25 +21,15 @@ const envSchema = z.object({
    */
   /**
    * Quais proxies reversos são confiáveis (valor de `trust proxy` do Express).
-   *
-   * Padrão: só endereços de rede privada. O Render usa vários saltos internos
-   * em 10.0.0.0/8 (em quantidade variável), então um número fixo de saltos
-   * falha; confiando só na rede privada, o IP do cliente é o primeiro endereço
-   * público a partir da direita do X-Forwarded-For e não pode ser forjado.
-   *
-   * Aceita também um número de saltos ("1") ou "true"/"false". Confira após o
+   * Vazio = padrão de `trustedProxies.ts` (rede privada + Cloudflare), que é
+   * o caminho do Render. Aceita também um número de saltos ("1"), "true"/
+   * "false" ou uma lista de IPs/CIDRs separada por vírgula. Confira após o
    * deploy com GET /api/v1/health/client-ip: tem que ser o IP público real.
    */
   TRUST_PROXY: z
     .string()
-    .default('loopback, linklocal, uniquelocal')
-    .transform((value): boolean | number | string => {
-      const trimmed = value.trim();
-      if (/^d+$/.test(trimmed)) return Number(trimmed);
-      if (trimmed === 'true') return true;
-      if (trimmed === 'false') return false;
-      return trimmed;
-    }),
+    .default('')
+    .transform(parseTrustProxy),
   CORS_ORIGINS: z
     .string()
     .default('')

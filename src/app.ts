@@ -22,7 +22,7 @@ export function createApp() {
 
   // O Render fica na frente da aplicação com proxies internos (10.x): sem isto,
   // todo cliente teria o IP de um proxy e o rate limit valeria para todos juntos.
-  // Padrão: confiar só em proxies de rede privada (ver TRUST_PROXY em env.ts).
+  // Padrão: rede privada + Cloudflare, o caminho do Render (ver config/trustedProxies.ts).
   app.set('trust proxy', env.TRUST_PROXY);
 
   // API só devolve JSON: CSP fechada (default-src 'none') e demais headers do helmet.

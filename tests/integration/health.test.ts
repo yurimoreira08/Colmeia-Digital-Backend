@@ -47,4 +47,20 @@ describe('GET /api/v1/health/client-ip', () => {
 
     expect(response.body).toEqual({ ip: '203.0.113.9' });
   });
+  it('pula também a borda do Cloudflare, que fica na frente do Render', async () => {
+    // Visto em produção: cliente → Cloudflare (172.64.0.0/13) → proxies internos do Render (10.x).
+    const response = await request(createApp())
+      .get('/api/v1/health/client-ip')
+      .set('X-Forwarded-For', '203.0.113.9, 172.71.10.20, 10.28.177.20');
+
+    expect(response.body).toEqual({ ip: '203.0.113.9' });
+  });
+
+  it('pula a borda do Cloudflare em IPv6', async () => {
+    const response = await request(createApp())
+      .get('/api/v1/health/client-ip')
+      .set('X-Forwarded-For', '203.0.113.9, 2606:4700::1, 10.28.177.20');
+
+    expect(response.body).toEqual({ ip: '203.0.113.9' });
+  });
 });
