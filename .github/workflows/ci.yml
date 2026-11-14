@@ -23,6 +23,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Mesma versão do npm que gerou o package-lock (campo packageManager do package.json):
+      # o npm 10 que vem com o Node 22 resolve dependências opcionais de outro jeito e o npm ci falha.
+      - run: npm install -g npm@11.6.1
       - run: npm ci
       - run: npx prisma generate
       - run: npm run typecheck
@@ -55,6 +58,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Mesma versão do npm que gerou o package-lock (campo packageManager do package.json):
+      # o npm 10 que vem com o Node 22 resolve dependências opcionais de outro jeito e o npm ci falha.
+      - run: npm install -g npm@11.6.1
       - run: npm ci
       - name: Aplica todas as migrations num banco vazio
         run: npx prisma migrate deploy
