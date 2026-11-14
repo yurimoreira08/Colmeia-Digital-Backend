@@ -3,7 +3,6 @@ import * as apiaryService from '../services/apiaryService.js';
 import * as boxService from '../services/boxService.js';
 import * as reviewReportService from '../services/reviewReportService.js';
 import * as manejoService from '../services/manejoService.js';
-import * as appConfigService from '../services/appConfigService.js';
 import * as storageService from '../services/storageService.js';
 import { 
   listRecentNotifications, 
@@ -376,28 +375,6 @@ export async function markAllNotificationsReadController(req: any, res: any): Pr
     res.status(200).json({ success: true });
   } catch (error) {
     res.status(500).json({ message: 'Erro ao marcar todas notificações como lidas.' });
-  }
-}
-
-// --- APP CONFIG CONTROLLERS ---
-
-export async function getConfigController(req: any, res: any): Promise<void> {
-  try {
-    const key = req.query.key as string;
-    const value = await appConfigService.getConfig(key);
-    res.status(200).json({ key, value });
-  } catch (error) {
-    res.status(500).json({ message: 'Erro ao buscar configuração.' });
-  }
-}
-
-export async function setConfigController(req: any, res: any): Promise<void> {
-  try {
-    const { key, value } = req.body;
-    await appConfigService.setConfig(key, value);
-    res.status(200).json({ success: true });
-  } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao salvar configuração.' });
   }
 }
 

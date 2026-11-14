@@ -52,10 +52,6 @@ router.post('/notifications', apiController.createNotificationController);
 router.put('/notifications/:id/read', apiController.markNotificationReadController);
 router.put('/notifications/read-all', apiController.markAllNotificationsReadController);
 
-// App Config
-router.get('/config', apiController.getConfigController);
-router.post('/config', apiController.setConfigController);
-
 // Uploads / Storage
 const uploadManejoMulter = multer({
   storage: multer.memoryStorage(),
