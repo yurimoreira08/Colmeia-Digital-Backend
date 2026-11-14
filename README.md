@@ -46,3 +46,9 @@ npm run dev              # http://localhost:4000/api/v1/health
 - Erros internos nunca são expostos ao cliente.
 
 Veja `.env.example` para todas as variáveis de ambiente.
+
+## Documentação
+
+- [Arquitetura](docs/ARQUITETURA.md): estrutura, autenticação, autorização, proteções, modelo de dados e variáveis de ambiente.
+- [Desenvolvimento](docs/DESENVOLVIMENTO.md): convenções de código, testes e CI.
+- [Banco local](docs/BANCO-LOCAL.md) e [rollback de migrations](docs/ROLLBACK-MIGRATIONS.md).

@@ -1,0 +1,120 @@
+# Arquitetura — Colmeia Digital Backend
+
+API REST do Colmeia Digital (projeto FAPEPI): apiários, caixas (colmeias), revisões e manejos de campo.
+O cliente é o app mobile offline-first [Colmeia-Digital-Frontend](https://github.com/yurimoreira08/Colmeia-Digital-Frontend).
+
+## Stack
+
+- Node.js 22 + Express 4 + TypeScript (ESM, `"type": "module"`, `module: NodeNext`: imports relativos **com extensão `.js`**).
+- Prisma 5 → PostgreSQL no Supabase (`DATABASE_URL`), com Prisma Migrate (`prisma/migrations`).
+- Supabase Storage para fotos (bucket público).
+- Zod 4 (env e todas as rotas, locale pt), bcryptjs, multer (memória, 5 MB), helmet, express-rate-limit.
+- E-mail pela API do Resend ou por SMTP (nodemailer 10).
+- Deploy no Render, automático no push para `main`. `GET /api/v1/health` mostra o commit em execução (`version`).
+
+## Estrutura
+
+```
+src/server.ts            prisma.$connect() + app.listen
+src/app.ts               trust proxy → helmet → cors(lista) → rate limits → json(1mb; 8mb em /upload)
+                         → parseUserId → requireAuth → /api/v1 → 404 → errorHandler
+src/config/              env.ts (Zod), runtime.ts (isProductionRuntime), trustedProxies.ts
+src/errors/AppError.ts   AppError (mensagem para o usuário + status) e NotFoundError (404)
+src/middlewares/         auth, validate (Zod → 422), authorize (posse por rota), rateLimit, errorHandler
+src/validators/          schemas Zod por domínio (*.schema.ts)
+src/routes/              api.routes.ts (todas as rotas), reports.routes.ts, index.ts (/health)
+src/controllers/         api.controller.ts (quase tudo), reports.controller.ts
+src/services/            regras de negócio (authService, apiaryService, boxService, manejoService, ...)
+src/data/repositories/   acesso ao Prisma + mapeamento snake_case (banco) → camelCase (API);
+                         ownershipRepository concentra a regra de posse
+src/data/prisma.ts       PrismaClient singleton
+src/types/               mobile-models.ts (contratos com o app), express.d.ts (req.userId/token)
+prisma/migrations/       0_init (baseline de 14/11/2026) + migrations; prisma/legacy/ fica fora do fluxo
+```
+
+## Fluxo de uma requisição
+
+`validate({ body, query, params })` (formato, 422) → `require*()` de `authorize.ts` (posse: 404 se não existe, 403 se é de outro usuário) → controller → service → repository → Prisma.
+
+### Erros
+
+- Services lançam `AppError`/`NotFoundError` com mensagem em português, escrita para o usuário.
+- O `catch` do controller chama `sendErrorResponse(res, error, 'mensagem genérica', 'nomeDoController')`:
+  - `AppError` → status e mensagem do próprio erro;
+  - qualquer outro erro (Prisma, Supabase, bug) → registrado no log, e o cliente recebe 500 com a mensagem genérica.
+- Formato de erro: `{ message }`. Erros de validação (422) trazem também `errors: [{ field, message }]`.
+- O `errorHandler` final responde em JSON a JSON malformado (400), corpo grande demais (413) e rotas inexistentes (404).
+
+## Autenticação
+
+- O login gera um token aleatório (32 bytes, hex). Só o **SHA-256** dele fica em `sessions.token_hash` (validade de 30 dias). O cliente envia `Authorization: Bearer <token>`.
+- `parseUserId` resolve `req.userId`; `requireAuth` bloqueia tudo, exceto a lista `publicPaths`.
+- **Senhas:** senhas novas têm de 8 a 72 caracteres e valem **exatamente como digitadas** (sem trim), com bcrypt custo 12. O login não aplica a política (contas antigas podem ter senhas curtas) e regrava o hash quando o custo é antigo ou quando ele só bateu pela versão com trim (hashes antigos).
+- **Respostas nunca trazem o hash da senha:** toda resposta com usuário usa `PublicUser`, via `toPublicUser()`.
+- **Recuperação de senha:** código de 6 dígitos (guardado como SHA-256), válido por 15 minutos. Trocar a senha encerra todas as sessões. Depois de 5 códigos errados o código ativo é invalidado (coluna `password_resets.attempts`, que sobrevive a reinícios). O pedido de código responde sempre a mesma mensagem, exista o e-mail ou não.
+
+## Autorização (posse)
+
+- O dono do apiário é dono de tudo o que está nele.
+- `authorize.ts` confere a posse em cada rota:
+  - apiário, caixa, revisão e manejo pelo `:id`;
+  - o apiário informado no body (`POST /boxes`, edição em `POST /apiaries`) e na query (`?apiaryId=`);
+  - na criação de revisão ou manejo, a caixa precisa ser do usuário **e** do `apiaryId` informado (422 se não for).
+- Os repositórios continuam filtrando por usuário (`findOwnedApiaryIds`) como segunda camada.
+- Recurso de outro usuário responde **403** (e não 404): o sync do app trata 403 de apiário marcando o registro como resolvido.
+
+## Proteções
+
+- **Rate limit** (`middlewares/rateLimit.ts`, em memória, válido para uma instância):
+  - geral: 1000 requisições a cada 15 min por IP;
+  - login, cadastro e reset: 10 **falhas** a cada 15 min por IP (sucessos não contam, porque muitos usuários do interior saem pelo mesmo IP da operadora);
+  - pedido de código: 3 por hora por e-mail.
+  - Com mais de uma instância, troque o store por Redis.
+- **IP do cliente:** `TRUST_PROXY` vazio confia na rede privada e nas faixas do Cloudflare (`src/config/trustedProxies.ts`). O caminho no Render é cliente → Cloudflare → proxies internos (10.x). `GET /api/v1/health/client-ip` (público) mostra o IP que a API enxerga; ele precisa bater com o IP público real.
+- **Headers:** helmet com CSP `default-src 'none'`, HSTS e nosniff. CORS só para as origens de `CORS_ORIGINS`.
+- **Uploads:** todos passam por `storageService.uploadBufferToStorage`, que confere os magic bytes (JPEG, PNG ou WEBP), limita a 5 MB e gera o caminho no servidor. Imagem inválida → `InvalidImageError` (400).
+- **E-mail:** os logs nunca trazem o destinatário nem o conteúdo. Sem provedor configurado, em produção nada é impresso. Se o provedor configurado falhar, `sendEmail` devolve `false`.
+- **Produção** = `isProductionRuntime()`: `NODE_ENV=production` **ou** `RENDER=true`. Não defina `NODE_ENV=production` no Render: o `npm install` do build pularia as devDependencies (TypeScript) e o deploy quebraria.
+
+## Modelo de dados (`prisma/schema.prisma`)
+
+- `User` 1-N `Session`, `PasswordReset`, `Apiary`, `Notification`.
+- `Apiary` 1-N `Box`, `ReviewReport`, `Manejo`; `Box` 1-N `ReviewReport`, `Manejo` (todas com `onDelete: Cascade`).
+- `Manejo` N-1 `ReviewReport` (`SetNull`).
+- Revisões e manejos guardam também `caixa_name`/`apiary_name` (denormalizados) e o `user_id` de quem criou (pode ser nulo em dados antigos).
+- `checked_options` é JSON em texto. `archived` e `read` são `Boolean`.
+- `client_uuid` (único) em revisões e manejos garante a idempotência do sync offline.
+- Exclusões e arquivamentos em cascata rodam em `prisma.$transaction` e apagam por `apiary_id`/`caixa_id`.
+- `prisma/legacy/20261025143000_add_terms_version.sql`: migration antiga que nunca foi registrada. O UPDATE dela (4 usuários com `terms_version` nulo) não foi aplicado e aguarda decisão.
+
+## Banco de dados
+
+Existe **um único banco Supabase, e ele é a produção**. Desenvolvimento e ensaio de migrations usam um Postgres local: veja [BANCO-LOCAL.md](BANCO-LOCAL.md). Rollback em [ROLLBACK-MIGRATIONS.md](ROLLBACK-MIGRATIONS.md) e procedimento de testes em [AMBIENTE-DE-TESTES.md](AMBIENTE-DE-TESTES.md).
+
+Fluxo de migration:
+1. Alterar `schema.prisma`.
+2. `npm run db:migrate:create -- --name x` contra o banco **local**.
+3. **Ler e corrigir o SQL gerado.** Ao mudar o tipo de uma coluna, o Prisma apaga e recria; use `ALTER ... TYPE ... USING` dentro de `BEGIN/COMMIT`.
+4. Ensaiar numa cópia restaurada do backup.
+5. `scripts/backup-db.ps1`.
+6. Push, e esperar o `/health` mostrar o novo commit.
+7. `npm run db:migrate:deploy` em produção, depois `npm run db:migrate:status`.
+
+## Variáveis de ambiente
+
+Modelo completo em `.env.example` (o `.env` real é ignorado pelo git).
+
+| Variável | Uso |
+|---|---|
+| `PORT` | Porta do servidor (padrão 4000) |
+| `DATABASE_URL` | PostgreSQL (hoje, a produção) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (ou `SUPABASE_ANON_KEY`), `SUPABASE_BUCKET_NAME` | Storage das fotos |
+| `RESEND_API_KEY`, `RESEND_FROM`, `SMTP_*` | E-mail de recuperação de senha |
+| `NODE_ENV` | Não use `production` no Render (ver "Proteções") |
+| `CORS_ORIGINS` | Origens web separadas por vírgula; vazio = nenhuma |
+| `TRUST_PROXY` | Vazio = rede privada + Cloudflare |
+| `RENDER_GIT_COMMIT` | Definida pelo Render; aparece no `/health` |
+
+## Contrato com o app
+
+Rotas, nomes de campo (`boxCount` é **texto** no `POST /apiaries`), formato de erro e `{ success: true, id }` nos saves fazem parte do contrato com o app. O app envia `null` em campos vazios vindos do SQLite, e os schemas aceitam. Mudanças de contrato precisam ser feitas junto no app e documentadas em `docs/CONTRATO-API-*.md`.
