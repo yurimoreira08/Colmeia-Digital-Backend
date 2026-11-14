@@ -13,21 +13,22 @@ datasource db {
 }
 
 model User {
-  id                     Int        @id @default(autoincrement())
+  id                     Int       @id @default(autoincrement())
   name                   String
-  email                  String     @unique
+  email                  String    @unique
   password_hash          String
   photo                  String?
   terms_accepted_at      DateTime?
   terms_version          String?
   terms_accepted_version String?
-  created_at             DateTime   @default(now())
-  updated_at             DateTime   @updatedAt
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
 
   sessions        Session[]
   apiaries        Apiary[]
   password_resets PasswordReset[]
   notifications   Notification[]
+  deleted_records DeletedRecord[]
 
   @@map("users")
 }
@@ -42,7 +43,7 @@ model PasswordReset {
   attempts   Int       @default(0)
   created_at DateTime  @default(now())
 
-  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([code_hash])
@@ -57,7 +58,7 @@ model Session {
   expires_at  DateTime
   created_at  DateTime @default(now())
 
-  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([token_hash])
@@ -67,6 +68,8 @@ model Session {
 /// O dono do apiário é dono de tudo que está nele (caixas, revisões, manejos).
 model Apiary {
   id          Int      @id @default(autoincrement())
+  /// Gerado no aparelho: torna idempotente a criação pelo POST /sync.
+  client_uuid String?  @unique
   user_id     Int
   name        String
   location    String
@@ -81,18 +84,21 @@ model Apiary {
   manejos        Manejo[]
 
   @@index([user_id])
+  @@index([user_id, updated_at])
   @@map("apiaries")
 }
 
 model Box {
-  id         Int      @id @default(autoincrement())
-  apiary_id  Int
-  user_id    Int?
-  name       String
-  position   Int
-  archived   Boolean  @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  /// Gerado no aparelho: torna idempotente a criação pelo POST /sync.
+  client_uuid String?  @unique
+  apiary_id   Int
+  user_id     Int?
+  name        String
+  position    Int
+  archived    Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   apiary         Apiary         @relation(fields: [apiary_id], references: [id], onDelete: Cascade)
   review_reports ReviewReport[]
@@ -100,6 +106,7 @@ model Box {
 
   @@index([apiary_id, archived])
   @@index([user_id])
+  @@index([updated_at])
   @@map("boxes")
 }
 
@@ -126,6 +133,7 @@ model ReviewReport {
   @@index([apiary_id, caixa_id])
   @@index([user_id])
   @@index([created_at])
+  @@index([updated_at])
   @@map("review_reports")
 }
 
@@ -156,6 +164,7 @@ model Manejo {
   @@index([user_id])
   @@index([created_at])
   @@index([revisao_id])
+  @@index([updated_at])
   @@map("manejos")
 }
 
@@ -178,4 +187,21 @@ model AppConfig {
   value String
 
   @@map("app_config")
+}
+
+/// Exclusões feitas no servidor, para o pull incremental do sync (GET /sync/changes).
+/// Sem isto o aparelho não saberia que um registro sumiu. Apagar um apiário
+/// ou caixa gera um registro só para ele: o app apaga os filhos localmente.
+model DeletedRecord {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  /// Tabela do registro: apiaries, boxes, review_reports ou manejos.
+  entity     String
+  record_id  Int
+  deleted_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, deleted_at])
+  @@map("deleted_records")
 }

@@ -54,9 +54,8 @@ npm run db:migrate:deploy
 ## 4. Aplicar em produção
 
 1. `.\scripts\backup-db.ps1`
-2. Publique o código que depende da migration e espere o deploy
-   (`GET /api/v1/health` mostra o commit em `version`).
-3. `npm run db:migrate:deploy` com o `DATABASE_URL` de produção.
+2. Migration que só acrescenta: `npm run db:migrate:deploy` com o `DATABASE_URL` de produção e, depois, publique o código. Migration que remove ou muda coluna usada: publique primeiro e espere o deploy (`GET /api/v1/health` mostra o commit em `version`). Detalhes em [ARQUITETURA.md](ARQUITETURA.md#banco-de-dados).
+3. Confira se o app em produção segue respondendo.
 4. `npm run db:migrate:status` deve dizer que está tudo aplicado.
 
 Rollback: `.\scripts\restore-db.ps1` com o backup do passo 1 e reverter o commit

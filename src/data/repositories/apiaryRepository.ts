@@ -1,4 +1,5 @@
 import { prisma } from '../prisma.js';
+import { recordDeletions } from './deletedRecordRepository.js';
 import type { Apiary } from '../../types/mobile-models.js';
 
 function mapPrismaApiary(a: any): Apiary {
@@ -16,7 +17,8 @@ function mapPrismaApiary(a: any): Apiary {
   };
 }
 
-export async function listApiaries(userId?: number): Promise<Apiary[]> {
+/** Apiários do usuário. `updatedSince` limita aos alterados depois dessa data (pull incremental do sync). */
+export async function listApiaries(userId?: number, options?: { updatedSince?: Date }): Promise<Apiary[]> {
   if (!userId || typeof userId !== 'number') {
     return [];
   }
@@ -24,6 +26,7 @@ export async function listApiaries(userId?: number): Promise<Apiary[]> {
   const where: any = {
     user_id: userId,
   };
+  if (options?.updatedSince) where.updated_at = { gt: options.updatedSince };
 
   const rows = await prisma.apiary.findMany({
     where,
@@ -174,5 +177,7 @@ export async function deleteApiary(id: number, userId?: number): Promise<void> {
     await tx.reviewReport.deleteMany({ where: { apiary_id: id } });
     await tx.box.deleteMany({ where: { apiary_id: id } });
     await tx.apiary.deleteMany({ where: { id, user_id: userId } });
+    // Um registro só para o apiário: o app apaga as caixas e os registros dele localmente.
+    await recordDeletions(tx, userId, 'apiaries', [id]);
   });
 }

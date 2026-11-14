@@ -1,5 +1,7 @@
 import { prisma } from '../prisma.js';
-import { findOwnedApiaryIds } from './ownershipRepository.js';
+import { findFieldRecordOwnerId, findOwnedApiaryIds } from './ownershipRepository.js';
+import { AppError } from '../../errors/AppError.js';
+import { recordDeletions } from './deletedRecordRepository.js';
 import type { ReviewReport } from '../../types/mobile-models.js';
 
 function mapPrismaReview(r: any): ReviewReport {
@@ -45,6 +47,10 @@ export async function saveReviewReport(
       where: { client_uuid: params.clientUuid },
     });
     if (existing) {
+      // Reenvio do mesmo registro: devolve o já gravado, desde que seja deste usuário (achado S20).
+      if (userId !== undefined && (await findFieldRecordOwnerId('revision', existing.id)) !== userId) {
+        throw new AppError('Este registro já foi enviado por outra conta.', 409);
+      }
       return mapPrismaReview(existing);
     }
   }
@@ -73,6 +79,8 @@ export async function listReviewReports(
     apiaryId?: number;
     caixaId?: number;
     includeArchived?: boolean;
+    /** Só os alterados depois desta data (pull incremental do sync). */
+    updatedSince?: Date;
   },
   userId?: number,
 ): Promise<ReviewReport[]> {
@@ -91,6 +99,10 @@ export async function listReviewReports(
 
   if (!params?.includeArchived) {
     where.archived = false;
+  }
+
+  if (params?.updatedSince) {
+    where.updated_at = { gt: params.updatedSince };
   }
 
   if (params?.tipo) {
@@ -123,7 +135,10 @@ export async function deleteReviewReport(id: number, userId?: number): Promise<v
     ];
   }
 
-  await prisma.reviewReport.deleteMany({ where });
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.reviewReport.deleteMany({ where });
+    if (count > 0 && userId !== undefined) await recordDeletions(tx, userId, 'review_reports', [id]);
+  });
 }
 
 export async function updateReviewReport(
@@ -180,4 +195,10 @@ export async function unarchiveReviewReport(id: number, userId?: number): Promis
     where,
     data: { archived: false },
   });
+}
+
+/** Revisão pelo id, sem filtro de dono: quem chama já conferiu a posse. */
+export async function findReviewReportById(id: number): Promise<ReviewReport | null> {
+  const row = await prisma.reviewReport.findUnique({ where: { id } });
+  return row ? mapPrismaReview(row) : null;
 }

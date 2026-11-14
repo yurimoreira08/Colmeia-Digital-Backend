@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import * as apiController from '../controllers/api.controller.js';
+import * as syncController from '../controllers/sync.controller.js';
 import {
   requireApiaryForSave,
   requireApiaryFromBody,
@@ -30,6 +31,7 @@ import {
   updateManejoBodySchema,
   updateRevisionBodySchema,
 } from '../validators/record.schema.js';
+import { syncChangesQuerySchema, syncPushBodySchema } from '../validators/sync.schema.js';
 
 const router = Router();
 
@@ -51,6 +53,11 @@ router.post('/auth/accept-terms', validate({ body: acceptTermsBodySchema }), api
 router.post('/auth/terms', validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
 router.post('/auth/forgot-password', validate({ body: forgotPasswordBodySchema }), apiController.forgotPasswordController);
 router.post('/auth/reset-password', validate({ body: resetPasswordBodySchema }), apiController.resetPasswordController);
+
+// Sync: só os dados do usuário logado (cada consulta filtra pelo dono).
+router.get('/sync/changes', validate({ query: syncChangesQuerySchema }), syncController.getSyncChangesController);
+// A posse de cada item é conferida no syncPushService (o lote mistura vários registros).
+router.post('/sync', validate({ body: syncPushBodySchema }), syncController.pushSyncController);
 
 // Apiaries
 router.get('/apiaries', apiController.listApiariesController);

@@ -34,6 +34,7 @@ const MODELS = [
   'reviewReport',
   'manejo',
   'notification',
+  'deletedRecord',
   'appConfig',
 ] as const;
 

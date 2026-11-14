@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../prisma.js';
+import { recordDeletions } from './deletedRecordRepository.js';
 import type { Box } from '../../types/mobile-models.js';
 
 function mapPrismaBox(b: any): Box {
@@ -16,7 +17,7 @@ function mapPrismaBox(b: any): Box {
 }
 
 export async function listBoxes(
-  params?: { apiaryId?: number; search?: string; includeArchived?: boolean; showAll?: boolean },
+  params?: { apiaryId?: number; search?: string; includeArchived?: boolean; showAll?: boolean; updatedSince?: Date },
   userId?: number,
 ): Promise<Box[]> {
   if (!userId || typeof userId !== 'number') {
@@ -37,6 +38,10 @@ export async function listBoxes(
 
   if (params?.apiaryId) {
     where.apiary_id = params.apiaryId;
+  }
+
+  if (params?.updatedSince) {
+    where.updated_at = { gt: params.updatedSince };
   }
 
   if (params?.search && params.search.trim().length > 0) {
@@ -139,15 +144,6 @@ export async function createBox(
   return mapPrismaBox(row);
 }
 
-export async function deleteBoxesAfterPosition(apiaryId: number, maxPositionToKeep: number): Promise<void> {
-  await prisma.box.deleteMany({
-    where: {
-      apiary_id: apiaryId,
-      position: { gt: maxPositionToKeep },
-    },
-  });
-}
-
 export async function renameBox(boxId: number, newName: string, userId?: number): Promise<void> {
   const where: any = { id: boxId };
   if (userId !== undefined) {
@@ -187,6 +183,8 @@ export async function removeBox(boxId: number, userId?: number): Promise<void> {
     await tx.manejo.deleteMany({ where: { caixa_id: boxId } });
     await tx.reviewReport.deleteMany({ where: { caixa_id: boxId } });
     await tx.box.deleteMany({ where: { id: boxId } });
+    // Um registro só para a caixa: o app apaga as revisões e os manejos dela localmente.
+    if (userId !== undefined) await recordDeletions(tx, userId, 'boxes', [boxId]);
   });
 }
 

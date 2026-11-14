@@ -83,7 +83,8 @@ prisma/migrations/       0_init (baseline de 14/11/2026) + migrations; prisma/le
 - `Manejo` N-1 `ReviewReport` (`SetNull`).
 - Revisões e manejos guardam também `caixa_name`/`apiary_name` (denormalizados) e o `user_id` de quem criou (pode ser nulo em dados antigos).
 - `checked_options` é JSON em texto. `archived` e `read` são `Boolean`.
-- `client_uuid` (único) em revisões e manejos garante a idempotência do sync offline.
+- `client_uuid` (único, gerado no aparelho) em apiários, caixas, revisões e manejos garante a idempotência do sync offline. Reenviar um `client_uuid` de outra conta responde 409 (achado S20).
+- `DeletedRecord` (`deleted_records`): cada exclusão feita no servidor grava `entity` + `record_id` na mesma transação, para o pull incremental avisar os outros aparelhos. Apiário e caixa geram um registro só; o app apaga os filhos localmente.
 - Exclusões e arquivamentos em cascata rodam em `prisma.$transaction` e apagam por `apiary_id`/`caixa_id`.
 - `prisma/legacy/20261025143000_add_terms_version.sql`: migration antiga que nunca foi registrada. O UPDATE dela (4 usuários com `terms_version` nulo) não foi aplicado e aguarda decisão.
 
@@ -97,8 +98,10 @@ Fluxo de migration:
 3. **Ler e corrigir o SQL gerado.** Ao mudar o tipo de uma coluna, o Prisma apaga e recria; use `ALTER ... TYPE ... USING` dentro de `BEGIN/COMMIT`.
 4. Ensaiar numa cópia restaurada do backup.
 5. `scripts/backup-db.ps1`.
-6. Push, e esperar o `/health` mostrar o novo commit.
-7. `npm run db:migrate:deploy` em produção, depois `npm run db:migrate:status`.
+6. Ordem entre migration e deploy:
+   - **Migration que só acrescenta** (tabela, coluna nula, índice): `db:migrate:deploy` em produção **antes** do push. O código antigo funciona com o banco novo, mas o código novo quebraria sem as colunas (o Prisma Client lê todas).
+   - **Migration que remove ou muda** coluna usada pelo código atual: push primeiro (código que não depende dela), espere o `/health` mostrar o commit, depois a migration.
+7. `npm run db:migrate:status` deve dizer que está tudo aplicado.
 
 ## Variáveis de ambiente
 
@@ -118,3 +121,15 @@ Modelo completo em `.env.example` (o `.env` real é ignorado pelo git).
 ## Contrato com o app
 
 Rotas, nomes de campo (`boxCount` é **texto** no `POST /apiaries`), formato de erro e `{ success: true, id }` nos saves fazem parte do contrato com o app. O app envia `null` em campos vazios vindos do SQLite, e os schemas aceitam. Mudanças de contrato precisam ser feitas junto no app e documentadas em `docs/CONTRATO-API-*.md`.
+
+### Sync em lote (F3)
+
+As rotas antigas (uma requisição por registro e as listagens completas) continuam para as versões instaladas do app. As novas:
+
+- `GET /sync/changes?since=<serverTime>`: o que mudou desde o último sync (apiários, caixas, revisões e manejos com `updated_at` depois de `since`, com 2 minutos de margem), as exclusões do período (`deletions: [{ entity, id, deletedAt }]`) e as 50 notificações recentes, no formato das listagens. Sem `since`, devolve tudo (`full: true`). O app guarda o `serverTime` da resposta para o próximo pull.
+- `POST /sync`: lote com `deletions`, `apiaries`, `boxes`, `revisions` e `manejos` (até 100 por lista). Cada item tem `localId` (id no SQLite; negativo se criado offline) e, se já existe no servidor, `id` e `baseUpdatedAt`. Pais podem ser referenciados por id negativo de um item do mesmo lote. Processa nessa ordem, com os mesmos services e regras de posse das rotas antigas, e responde 200 com o resultado de cada item:
+  - `created`/`updated` com o `id` do servidor;
+  - `conflict`: o registro mudou no servidor depois de `baseUpdatedAt`; nada é gravado e `server` traz a versão atual, que prevalece;
+  - `rejected` (não encontrado, de outro usuário, pai recusado, dado inválido) com `message`;
+  - `error`: falha inesperada; o app reenvia depois.
+- As fotos de manejo continuam subindo antes, por `POST /upload/manejo-photo`; no lote vai só a URL.

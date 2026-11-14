@@ -1,5 +1,7 @@
 import { prisma } from '../prisma.js';
-import { findOwnedApiaryIds } from './ownershipRepository.js';
+import { findFieldRecordOwnerId, findOwnedApiaryIds } from './ownershipRepository.js';
+import { AppError } from '../../errors/AppError.js';
+import { recordDeletions } from './deletedRecordRepository.js';
 import type { ManejoReport, ManejoTask } from '../../types/mobile-models.js';
 
 function mapPrismaManejo(m: any): ManejoReport {
@@ -52,6 +54,10 @@ export async function saveManejo(
       where: { client_uuid: params.clientUuid },
     });
     if (existing) {
+      // Reenvio do mesmo registro: devolve o já gravado, desde que seja deste usuário (achado S20).
+      if (userId !== undefined && (await findFieldRecordOwnerId('manejo', existing.id)) !== userId) {
+        throw new AppError('Este registro já foi enviado por outra conta.', 409);
+      }
       return mapPrismaManejo(existing);
     }
   }
@@ -82,6 +88,8 @@ export async function listManejos(
     apiaryId?: number;
     caixaId?: number;
     includeArchived?: boolean;
+    /** Só os alterados depois desta data (pull incremental do sync). */
+    updatedSince?: Date;
   },
   userId?: number,
 ): Promise<ManejoReport[]> {
@@ -100,6 +108,10 @@ export async function listManejos(
 
   if (!params?.includeArchived) {
     where.archived = false;
+  }
+
+  if (params?.updatedSince) {
+    where.updated_at = { gt: params.updatedSince };
   }
 
   if (params?.tipo) {
@@ -132,7 +144,10 @@ export async function deleteManejo(id: number, userId?: number): Promise<void> {
     ];
   }
 
-  await prisma.manejo.deleteMany({ where });
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.manejo.deleteMany({ where });
+    if (count > 0 && userId !== undefined) await recordDeletions(tx, userId, 'manejos', [id]);
+  });
 }
 
 export async function updateManejo(
@@ -195,4 +210,10 @@ export async function unarchiveManejoRepository(id: number, userId?: number): Pr
     where,
     data: { archived: false },
   });
+}
+
+/** Manejo pelo id, sem filtro de dono: quem chama já conferiu a posse. */
+export async function findManejoById(id: number): Promise<ManejoReport | null> {
+  const row = await prisma.manejo.findUnique({ where: { id } });
+  return row ? mapPrismaManejo(row) : null;
 }

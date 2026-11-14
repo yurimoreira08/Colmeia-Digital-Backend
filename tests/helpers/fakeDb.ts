@@ -20,6 +20,8 @@ export interface FakeDb {
   reviewReports: Row[];
   manejos: Row[];
   notifications: Row[];
+  /** Exclusões registradas para o pull incremental (tombstones). */
+  deletedRecords: Row[];
 }
 
 const now = () => new Date('2026-06-01T12:00:00Z');
@@ -141,13 +143,15 @@ export function useFakeDb(initial: Partial<FakeDb> = {}): FakeDb {
     reviewReports: [...(initial.reviewReports ?? [])].map((r) => ({ ...r })),
     manejos: [...(initial.manejos ?? [])].map((r) => ({ ...r })),
     notifications: [...(initial.notifications ?? [])].map((r) => ({ ...r })),
+    deletedRecords: [...(initial.deletedRecords ?? [])].map((r) => ({ ...r })),
   };
   const timestamps = () => ({ created_at: now(), updated_at: now() });
-  bindModel(db, 'apiaries', 'apiary', () => ({ ...timestamps(), description: '', box_count: 0 }));
-  bindModel(db, 'boxes', 'box', () => ({ ...timestamps(), archived: false, user_id: null }));
+  bindModel(db, 'apiaries', 'apiary', () => ({ ...timestamps(), client_uuid: null, description: '', box_count: 0 }));
+  bindModel(db, 'boxes', 'box', () => ({ ...timestamps(), client_uuid: null, archived: false, user_id: null }));
   bindModel(db, 'reviewReports', 'reviewReport', () => ({ ...timestamps(), archived: false, client_uuid: null }));
   bindModel(db, 'manejos', 'manejo', () => ({ ...timestamps(), archived: false, client_uuid: null, photo_uri: null, revisao_id: null }));
   bindModel(db, 'notifications', 'notification', () => ({ created_at: now(), read: false }));
+  bindModel(db, 'deletedRecords', 'deletedRecord', () => ({ deleted_at: now() }));
   // $transaction com rollback de verdade: se algo falha no meio, as tabelas
   // voltam ao estado anterior, como no Postgres.
   prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
