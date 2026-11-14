@@ -30,6 +30,11 @@ export async function ensurePasswordResetsTable(): Promise<void> {
     await prisma.$executeRawUnsafe(`
       CREATE INDEX IF NOT EXISTS idx_password_resets_code_hash ON password_resets(code_hash)
     `);
+    // Migração aditiva e idempotente (Fase 1): o contador de tentativas fica no
+    // banco para sobreviver a reinícios do servidor. Linhas existentes recebem 0.
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0
+    `);
     isTableInitialized = true;
   } catch (err) {
     console.error('[passwordResetRepository] Falha ao verificar/criar tabela password_resets:', err);
@@ -187,4 +192,26 @@ export async function invalidatePreviousResets(userId: number): Promise<void> {
     `UPDATE password_resets SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
     userId
   );
+}
+
+/**
+ * Soma uma tentativa errada aos códigos ativos do usuário.
+ *
+ * @returns o total de tentativas do código ativo mais recente (0 se não houver código ativo).
+ */
+export async function incrementResetAttempts(userId: number): Promise<number> {
+  await ensurePasswordResetsTable();
+  const activeWhere = { user_id: userId, used_at: null, expires_at: { gt: new Date() } };
+
+  await prisma.passwordReset.updateMany({
+    where: activeWhere,
+    data: { attempts: { increment: 1 } },
+  });
+
+  const latest = await prisma.passwordReset.findFirst({
+    where: activeWhere,
+    orderBy: { id: 'desc' },
+    select: { attempts: true },
+  });
+  return latest?.attempts ?? 0;
 }
