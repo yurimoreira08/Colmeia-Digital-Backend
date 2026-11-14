@@ -113,6 +113,15 @@ export async function createApiary(
   return mapPrismaApiary(row);
 }
 
+/**
+ * Atualiza um apiário **somente se ele pertencer ao usuário informado**.
+ *
+ * O filtro por `user_id` fica dentro do próprio `where` da escrita (e não numa
+ * checagem prévia) para que não exista caminho em que um usuário altere o
+ * apiário de outro — o `checkRole` não cobre `POST /apiaries` com `id` no body.
+ *
+ * @returns o apiário atualizado, ou `null` se ele não existir ou não for do usuário.
+ */
 export async function updateApiary(
   id: number,
   params: {
@@ -122,14 +131,14 @@ export async function updateApiary(
     description: string;
   },
   userId?: number,
-): Promise<Apiary> {
-  const where: any = { id };
-  if (userId !== undefined) {
-    where.user_id = userId;
+): Promise<Apiary | null> {
+  // Sem usuário autenticado não há dono a verificar: recusa (fail-closed).
+  if (!userId) {
+    return null;
   }
 
-  const row = await prisma.apiary.update({
-    where: { id },
+  const result = await prisma.apiary.updateMany({
+    where: { id, user_id: userId },
     data: {
       name: params.name.trim(),
       location: params.location.trim(),
@@ -138,7 +147,11 @@ export async function updateApiary(
     },
   });
 
-  return mapPrismaApiary(row);
+  if (result.count === 0) {
+    return null;
+  }
+
+  return getApiaryById(id, userId);
 }
 
 export async function deleteApiary(id: number, userId?: number): Promise<void> {

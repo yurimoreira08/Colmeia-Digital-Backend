@@ -56,6 +56,12 @@ export async function saveApiary(
       description: finalDescription,
     }, userId);
 
+    // null = apiário inexistente ou de outro usuário; a mensagem é a mesma nos
+    // dois casos para não revelar se o id existe.
+    if (!updated) {
+      throw new Error('Apiário não encontrado.');
+    }
+
     await createNotification({
       title: 'Apiário atualizado',
       subtitle: `O apiário ${updated.name} foi atualizado com sucesso.`,
