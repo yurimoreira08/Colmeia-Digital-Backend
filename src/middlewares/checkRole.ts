@@ -8,7 +8,7 @@ export async function checkRole(req: any, res: any, next: NextFunction) {
   }
 
   const path = req.originalUrl || req.path;
-  const publicPaths = ['/health', '/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password', '/auth/logout'];
+  const publicPaths = ['/health', '/health/client-ip', '/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password', '/auth/logout'];
   const isPublic = publicPaths.some((p) => path.endsWith(p));
   if (isPublic) {
     return next();

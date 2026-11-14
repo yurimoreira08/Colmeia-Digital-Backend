@@ -10,6 +10,16 @@ export function healthController(_req: Request, res: Response): void {
   });
 }
 
+/**
+ * Devolve o IP do cliente como a API o enxerga (`req.ip`).
+ * Serve para conferir o TRUST_PROXY em produção: se o valor não for o IP
+ * público de quem chamou, o rate limit está tratando clientes diferentes
+ * como um só. Só expõe o IP do próprio chamador.
+ */
+export function clientIpController(req: Request, res: Response): void {
+  res.status(200).json({ ip: req.ip });
+}
+
 export async function getReportsStatsController(req: Request, res: Response): Promise<void> {
   const { fromIso, toIso, searchTerm, chartFilter } = req.body;
 

@@ -25,7 +25,7 @@ export function requireAuth(req: any, res: any, next: any): any {
   }
 
   // Rotas públicas que não exigem identificação de usuário
-  const publicPaths = ['/health', '/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password', '/auth/logout'];
+  const publicPaths = ['/health', '/health/client-ip', '/auth/login', '/auth/register', '/auth/forgot-password', '/auth/reset-password', '/auth/logout'];
   const isPublic = publicPaths.some((p) => req.path.endsWith(p));
 
   if (!isPublic && req.userId === undefined) {
