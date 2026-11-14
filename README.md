@@ -1,35 +1,48 @@
 # Colmeia Digital — Backend API
 
-Serviço de backend em Node.js (Express + TypeScript) para o sistema **Colmeia Digital**, projetado para gestão inteligente e monitoramento operacional de unidades apícolas, colmeias, revisões técnicas e manejos de campo.
+API REST do **Colmeia Digital** (projeto FAPEPI) para gestão de apiários, caixas (colmeias), revisões e manejos de campo.
+O cliente é o app mobile offline-first [Colmeia-Digital-Frontend](https://github.com/yurimoreira08/Colmeia-Digital-Frontend).
 
-## 🚀 Tecnologias
+## Tecnologias
 
-- **Runtime:** Node.js (ES Modules)
-- **Framework:** Express.js 4
-- **Linguagem:** TypeScript
-- **Banco de Dados:** SQLite (`colmeia_digital.db`) para desenvolvimento local e PostgreSQL/Supabase em produção.
+- **Runtime:** Node.js (ES Modules) + Express 4 + TypeScript
+- **Banco de dados:** PostgreSQL no Supabase, acessado pelo Prisma
+- **Arquivos:** Supabase Storage (fotos de manejo e de perfil)
+- **E-mail:** Resend ou SMTP (recuperação de senha)
+- **Testes:** Vitest + Supertest · **Lint:** ESLint (typescript-eslint)
+- **Deploy:** Render
 
-## 📦 Módulos Principais
+## Módulos
 
-1. **Apiários (Unidades Apícolas):** Cadastro, monitoramento, geo-localização e compartilhamento entre apicultores.
-2. **Colmeias:** Gestão e posicionamento das caixas dentro de cada apiário.
-3. **Revisões:** Registro detalhado dos parâmetros biológicos da colmeia (rainha, postura, crias, mel, pólen, sanidade).
-4. **Manejos:** Registro técnico de intervenções (alimentação, divisão, cera, melgueiras, defesa).
-5. **Painel Analítico & Relatórios:** Consolidação métrica com gráficos temporais em tela.
+1. **Autenticação:** cadastro, login por token, recuperação de senha por código enviado por e-mail.
+2. **Apiários:** cadastro e edição das unidades apícolas de cada apicultor.
+3. **Caixas (colmeias):** caixas de cada apiário, com arquivamento.
+4. **Revisões:** parâmetros biológicos da colmeia (rainha, postura, crias, mel, pólen, sanidade).
+5. **Manejos:** intervenções de campo (alimentação, divisão, cera, melgueiras, defesa), com foto.
+6. **Relatórios:** estatísticas consolidadas por período.
 
-## 🛠️ Como Executar
+## Como executar
 
 ```bash
-# Instalar dependências
 npm install
-
-# Configurar variáveis de ambiente
-cp .env.example .env
-
-# Executar em modo desenvolvimento
-npm run dev
-
-# Compilar para produção
-npm run build
-npm start
+cp .env.example .env     # preencha as variáveis (o banco configurado hoje é o de produção!)
+npm run dev              # http://localhost:4000/api/v1/health
 ```
+
+## Comandos
+
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | Servidor em modo watch (porta 4000) |
+| `npm run build` / `npm start` | Compila para `dist/` e inicia |
+| `npm run typecheck` | Verifica os tipos |
+| `npm test` | Testes (não acessam banco nem storage reais) |
+| `npm run lint` | ESLint |
+
+## Segurança
+
+- Senhas com bcrypt (custo 12) e sessões por token aleatório, guardado só como hash.
+- Rate limit nas rotas de autenticação, headers de segurança (helmet) e CORS por lista.
+- Erros internos nunca são expostos ao cliente.
+
+Veja `.env.example` para todas as variáveis de ambiente.
