@@ -9,15 +9,6 @@ export default tseslint.config(
       'dist/',
       'node_modules/',
       'backups/',
-      // Camada legada SQLite/pg sem uso pelas rotas (item B8 do relatório).
-      // Será removida; até lá não vale a pena adequá-la ao lint.
-      'src/data/database.ts',
-      'src/data/migrations.ts',
-      'src/data/seeds.ts',
-      'src/controllers/migration.controller.ts',
-      'src/restore-to-supabase.ts',
-      'src/test-db-connection.ts',
-      'src/check-git.ts',
     ],
   },
   js.configs.recommended,

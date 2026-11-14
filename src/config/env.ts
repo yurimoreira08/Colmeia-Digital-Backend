@@ -6,7 +6,6 @@ dotenv.config();
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
-  DATABASE_PATH: z.string().default('./colmeia_digital.db'),
   DATABASE_URL: z.string().optional(),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
