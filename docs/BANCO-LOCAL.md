@@ -66,4 +66,3 @@ Rollback: `.\scripts\restore-db.ps1` com o backup do passo 1 e reverter o commit
 - `0_init`: baseline do schema de produção em 14/11/2026 (marcado como aplicado, não roda).
 - `20261114120000_fks_booleans_attempts`: FKs de revisões/manejos/notificações,
   flags `archived`/`read` como BOOLEAN, coluna `attempts` e remoção de 4 registros órfãos.
-- `prisma/legacy/`: migration antiga (25/10/2026) nunca registrada, fora do fluxo. Ver o comentário no arquivo.

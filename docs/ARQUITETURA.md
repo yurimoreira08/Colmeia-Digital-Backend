@@ -30,7 +30,7 @@ src/data/repositories/   acesso ao Prisma + mapeamento snake_case (banco) → ca
                          ownershipRepository concentra a regra de posse
 src/data/prisma.ts       PrismaClient singleton
 src/types/               mobile-models.ts (contratos com o app), express.d.ts (req.userId/token)
-prisma/migrations/       0_init (baseline de 14/11/2026) + migrations; prisma/legacy/ fica fora do fluxo
+prisma/migrations/       0_init (baseline de 14/11/2026) + migrations
 ```
 
 ## Fluxo de uma requisição
@@ -87,7 +87,7 @@ prisma/migrations/       0_init (baseline de 14/11/2026) + migrations; prisma/le
 - `client_uuid` (único, gerado no aparelho) em apiários, caixas, revisões e manejos garante a idempotência do sync offline. Reenviar um `client_uuid` de outra conta responde 409 (achado S20).
 - `DeletedRecord` (`deleted_records`): cada exclusão feita no servidor grava `entity` + `record_id` na mesma transação, para o pull incremental avisar os outros aparelhos. Apiário e caixa geram um registro só; o app apaga os filhos localmente.
 - Exclusões e arquivamentos em cascata rodam em `prisma.$transaction` e apagam por `apiary_id`/`caixa_id`.
-- `prisma/legacy/20261025143000_add_terms_version.sql`: migration antiga que nunca foi registrada. O UPDATE dela (4 usuários com `terms_version` nulo) não foi aplicado e aguarda decisão.
+- `terms_version` e `terms_accepted_version` guardam a versão dos termos aceita; a migration `20261114210000_backfill_terms_version` preencheu o `terms_version` dos usuários antigos (a migration legada de 25/10/2026 nunca tinha rodado).
 
 ## Banco de dados
 
