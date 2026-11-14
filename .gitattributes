@@ -1,0 +1,4 @@
+# Migrations do Prisma sempre com LF: o checksum que o Prisma guarda no banco
+# depende do conteúdo exato, e precisa ser igual no Windows e no Linux (CI/Render).
+prisma/migrations/**/*.sql text eol=lf
+prisma/migrations/migration_lock.toml text eol=lf
