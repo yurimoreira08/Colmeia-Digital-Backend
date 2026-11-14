@@ -17,6 +17,7 @@ export default defineConfig({
       SUPABASE_BUCKET_NAME: 'colmeia-test',
       RESEND_API_KEY: '',
       SMTP_HOST: '',
+      CORS_ORIGINS: 'https://painel.colmeiadigital.test',
     },
     restoreMocks: true,
   },
