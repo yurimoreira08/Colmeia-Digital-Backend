@@ -19,3 +19,10 @@ backups/
 
 # Postgres local sem Docker (docs/BANCO-LOCAL.md)
 .pgdata/
+
+# Arquivos locais de contexto da IA e relatórios de análise: nunca vão para o GitHub
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+analise-projeto.md
+RELATORIO-*.md
