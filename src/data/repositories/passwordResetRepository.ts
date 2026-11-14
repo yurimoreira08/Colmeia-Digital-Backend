@@ -1,5 +1,11 @@
 import { prisma } from '../prisma.js';
 
+/**
+ * Códigos de recuperação de senha (tabela `password_resets`).
+ * O schema da tabela é gerenciado pelas migrations do Prisma; só o hash
+ * SHA-256 do código é guardado.
+ */
+
 export interface PasswordResetRecord {
   id: number;
   userId: number;
@@ -9,189 +15,70 @@ export interface PasswordResetRecord {
   createdAt: Date;
 }
 
-let isTableInitialized = false;
+type PasswordResetRow = {
+  id: number;
+  user_id: number;
+  code_hash: string;
+  expires_at: Date;
+  used_at: Date | null;
+  created_at: Date;
+};
 
-export async function ensurePasswordResetsTable(): Promise<void> {
-  if (isTableInitialized) return;
-  try {
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS password_resets (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        code_hash TEXT NOT NULL,
-        expires_at TIMESTAMPTZ NOT NULL,
-        used_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS idx_password_resets_user_id ON password_resets(user_id)
-    `);
-    await prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS idx_password_resets_code_hash ON password_resets(code_hash)
-    `);
-    // Migração aditiva e idempotente (Fase 1): o contador de tentativas fica no
-    // banco para sobreviver a reinícios do servidor. Linhas existentes recebem 0.
-    await prisma.$executeRawUnsafe(`
-      ALTER TABLE password_resets ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0
-    `);
-    isTableInitialized = true;
-  } catch (err) {
-    console.error('[passwordResetRepository] Falha ao verificar/criar tabela password_resets:', err);
-    throw err;
-  }
+function mapPrismaPasswordReset(row: PasswordResetRow): PasswordResetRecord {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    codeHash: row.code_hash,
+    expiresAt: row.expires_at,
+    usedAt: row.used_at,
+    createdAt: row.created_at,
+  };
 }
 
+/** Filtro dos códigos ainda utilizáveis: não usados e dentro da validade. */
+function activeResetsWhere(userId: number) {
+  return { user_id: userId, used_at: null, expires_at: { gt: new Date() } };
+}
+
+/** Registra um novo código (já em hash) para o usuário. */
 export async function createPasswordReset(params: {
   userId: number;
   codeHash: string;
   expiresAt: Date;
 }): Promise<PasswordResetRecord> {
-  await ensurePasswordResetsTable();
-
-  const prismaModel = (prisma as any).passwordReset;
-  if (prismaModel && typeof prismaModel.create === 'function') {
-    const row = await prismaModel.create({
-      data: {
-        user_id: params.userId,
-        code_hash: params.codeHash,
-        expires_at: params.expiresAt,
-      },
-    });
-
-    return {
-      id: row.id,
-      userId: row.user_id,
-      codeHash: row.code_hash,
-      expiresAt: row.expires_at,
-      usedAt: row.used_at,
-      createdAt: row.created_at,
-    };
-  }
-
-  // Fallback resiliente via SQL nativo
-  const rows = await prisma.$queryRawUnsafe<any[]>(
-    `INSERT INTO password_resets (user_id, code_hash, expires_at, created_at)
-     VALUES ($1, $2, $3, NOW())
-     RETURNING id, user_id, code_hash, expires_at, used_at, created_at`,
-    params.userId,
-    params.codeHash,
-    params.expiresAt
-  );
-
-  const row = rows[0];
-  return {
-    id: row.id,
-    userId: row.user_id,
-    codeHash: row.code_hash,
-    expiresAt: new Date(row.expires_at),
-    usedAt: row.used_at ? new Date(row.used_at) : null,
-    createdAt: new Date(row.created_at),
-  };
+  const row = await prisma.passwordReset.create({
+    data: {
+      user_id: params.userId,
+      code_hash: params.codeHash,
+      expires_at: params.expiresAt,
+    },
+  });
+  return mapPrismaPasswordReset(row);
 }
 
-export async function findValidResetByCodeHash(
-  userId: number,
-  codeHash: string,
-): Promise<PasswordResetRecord | null> {
-  await ensurePasswordResetsTable();
-  const now = new Date();
-
-  const prismaModel = (prisma as any).passwordReset;
-  if (prismaModel && typeof prismaModel.findFirst === 'function') {
-    const row = await prismaModel.findFirst({
-      where: {
-        user_id: userId,
-        code_hash: codeHash,
-        used_at: null,
-        expires_at: {
-          gt: now,
-        },
-      },
-      orderBy: {
-        id: 'desc',
-      },
-    });
-
-    if (!row) return null;
-
-    return {
-      id: row.id,
-      userId: row.user_id,
-      codeHash: row.code_hash,
-      expiresAt: row.expires_at,
-      usedAt: row.used_at,
-      createdAt: row.created_at,
-    };
-  }
-
-  // Fallback resiliente via SQL nativo
-  const rows = await prisma.$queryRawUnsafe<any[]>(
-    `SELECT id, user_id, code_hash, expires_at, used_at, created_at
-     FROM password_resets
-     WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL AND expires_at > NOW()
-     ORDER BY id DESC
-     LIMIT 1`,
-    userId,
-    codeHash
-  );
-
-  if (!rows || rows.length === 0) return null;
-
-  const row = rows[0];
-  return {
-    id: row.id,
-    userId: row.user_id,
-    codeHash: row.code_hash,
-    expiresAt: new Date(row.expires_at),
-    usedAt: row.used_at ? new Date(row.used_at) : null,
-    createdAt: new Date(row.created_at),
-  };
+/** Código ativo do usuário com este hash, ou `null` (errado, usado ou expirado). */
+export async function findValidResetByCodeHash(userId: number, codeHash: string): Promise<PasswordResetRecord | null> {
+  const row = await prisma.passwordReset.findFirst({
+    where: { ...activeResetsWhere(userId), code_hash: codeHash },
+    orderBy: { id: 'desc' },
+  });
+  return row ? mapPrismaPasswordReset(row) : null;
 }
 
+/** Marca o código como usado (não pode ser reutilizado). */
 export async function markResetAsUsed(id: number): Promise<void> {
-  await ensurePasswordResetsTable();
-
-  const prismaModel = (prisma as any).passwordReset;
-  if (prismaModel && typeof prismaModel.update === 'function') {
-    await prismaModel.update({
-      where: { id },
-      data: {
-        used_at: new Date(),
-      },
-    });
-    return;
-  }
-
-  // Fallback resiliente via SQL nativo
-  await prisma.$executeRawUnsafe(
-    `UPDATE password_resets SET used_at = NOW() WHERE id = $1`,
-    id
-  );
+  await prisma.passwordReset.update({
+    where: { id },
+    data: { used_at: new Date() },
+  });
 }
 
+/** Invalida todos os códigos pendentes do usuário. */
 export async function invalidatePreviousResets(userId: number): Promise<void> {
-  await ensurePasswordResetsTable();
-
-  const prismaModel = (prisma as any).passwordReset;
-  if (prismaModel && typeof prismaModel.updateMany === 'function') {
-    await prismaModel.updateMany({
-      where: {
-        user_id: userId,
-        used_at: null,
-      },
-      data: {
-        used_at: new Date(),
-      },
-    });
-    return;
-  }
-
-  // Fallback resiliente via SQL nativo
-  await prisma.$executeRawUnsafe(
-    `UPDATE password_resets SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
-    userId
-  );
+  await prisma.passwordReset.updateMany({
+    where: { user_id: userId, used_at: null },
+    data: { used_at: new Date() },
+  });
 }
 
 /**
@@ -200,8 +87,7 @@ export async function invalidatePreviousResets(userId: number): Promise<void> {
  * @returns o total de tentativas do código ativo mais recente (0 se não houver código ativo).
  */
 export async function incrementResetAttempts(userId: number): Promise<number> {
-  await ensurePasswordResetsTable();
-  const activeWhere = { user_id: userId, used_at: null, expires_at: { gt: new Date() } };
+  const activeWhere = activeResetsWhere(userId);
 
   await prisma.passwordReset.updateMany({
     where: activeWhere,
