@@ -11,6 +11,8 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_BUCKET_NAME: z.string().default('colmeia-digital'),
+  // Texto livre (e não enum) para um valor inesperado no Render não derrubar o servidor.
+  NODE_ENV: z.string().default('development'),
   /**
    * Origens web autorizadas a chamar a API via navegador, separadas por vírgula
    * (ex.: "https://painel.exemplo.com,http://localhost:8081"). O app nativo não

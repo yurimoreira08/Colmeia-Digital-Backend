@@ -1,6 +1,20 @@
 import dotenv from 'dotenv';
+import { isProductionRuntime } from '../config/runtime.js';
 
 dotenv.config();
+
+/**
+ * Escapa texto para inserir com segurança em HTML.
+ * Dados do usuário (ex.: nome) nunca entram crus no corpo do e-mail.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export interface SendEmailParams {
   to: string;
@@ -9,6 +23,16 @@ export interface SendEmailParams {
   html: string;
 }
 
+/**
+ * Envia um e-mail pelo Resend (RESEND_API_KEY) ou por SMTP (SMTP_HOST/USER/PASS).
+ *
+ * Os logs nunca incluem o destinatário nem o conteúdo, que pode ter o código
+ * de recuperação. Sem provedor configurado, em desenvolvimento o e-mail é
+ * mostrado no console; em produção (incluindo o Render) nada é impresso e a
+ * função devolve false.
+ *
+ * @returns true se algum provedor aceitou o envio.
+ */
 export async function sendEmail(params: SendEmailParams): Promise<boolean> {
   const { to, subject, text, html } = params;
 
@@ -33,14 +57,13 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
       });
 
       if (res.ok) {
-        console.log(`[EMAIL] E-mail de recuperação enviado com sucesso para ${to} via Resend API`);
+        console.log('[EMAIL] E-mail enviado via Resend API.');
         return true;
       } else {
-        const errorData = await res.text();
-        console.error(`[EMAIL] Falha ao enviar via Resend API (Status ${res.status}):`, errorData);
+        console.error(`[EMAIL] Falha ao enviar via Resend API (status ${res.status}).`);
       }
     } catch (err) {
-      console.error('[EMAIL] Erro de rede ao conectar com Resend API:', err);
+      console.error('[EMAIL] Erro de rede ao conectar com a Resend API:', err instanceof Error ? err.name : err);
     }
   }
 
@@ -72,14 +95,22 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
         html,
       });
 
-      console.log(`[EMAIL] E-mail de recuperação enviado com sucesso para ${to} via SMTP (${smtpHost})`);
+      console.log('[EMAIL] E-mail enviado via SMTP.');
       return true;
     } catch (err) {
-      console.error(`[EMAIL] Falha ao enviar e-mail via SMTP (${smtpHost}):`, err);
+      // A mensagem do erro do SMTP pode citar o destinatário; registra só o código.
+      const code = (err as { code?: string })?.code ?? (err instanceof Error ? err.name : 'erro desconhecido');
+      console.error(`[EMAIL] Falha ao enviar e-mail via SMTP (${code}).`);
     }
   }
 
-  // 3. Modo Desenvolvimento / Fallback de Log no Console
+  // 3. Sem provedor configurado
+  if (isProductionRuntime()) {
+    console.error('[EMAIL] Nenhum provedor de e-mail configurado (RESEND_API_KEY ou SMTP_*). E-mail não enviado.');
+    return false;
+  }
+
+  // Só em desenvolvimento: mostra o e-mail no console para testar o fluxo localmente.
   console.log('\n===============================================================');
   console.log(`  📧 [EMAIL DISPARADO] Para: ${to}`);
   console.log(`  Assunto: ${subject}`);
@@ -116,7 +147,7 @@ export async function sendPasswordResetEmail(email: string, code: string, userNa
             <h1>🐝 COLMEIA DIGITAL</h1>
           </div>
           <div class="content">
-            <p>Olá, <strong>${userName}</strong>!</p>
+            <p>Olá, <strong>${escapeHtml(userName)}</strong>!</p>
             <p>Recebemos uma solicitação para redefinir a senha da sua conta.</p>
             <p>Utilize o código de verificação abaixo no aplicativo para criar uma nova senha:</p>
             
