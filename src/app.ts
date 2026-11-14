@@ -20,8 +20,9 @@ const BASE64_UPLOAD_JSON_LIMIT = '8mb';
 export function createApp() {
   const app = express();
 
-  // O Render fica na frente da aplicação como proxy reverso: sem isto, todo
-  // cliente teria o IP do proxy e o rate limit valeria para todos juntos.
+  // O Render fica na frente da aplicação com proxies internos (10.x): sem isto,
+  // todo cliente teria o IP de um proxy e o rate limit valeria para todos juntos.
+  // Padrão: confiar só em proxies de rede privada (ver TRUST_PROXY em env.ts).
   app.set('trust proxy', env.TRUST_PROXY);
 
   // API só devolve JSON: CSP fechada (default-src 'none') e demais headers do helmet.

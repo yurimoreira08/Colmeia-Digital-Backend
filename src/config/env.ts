@@ -19,11 +19,26 @@ const envSchema = z.object({
    * envia Origin e não depende disto. Vazio = nenhuma origem web liberada.
    */
   /**
-   * Quantos proxies reversos ficam na frente da API (valor de `trust proxy`).
-   * Errar para menos faz todos os clientes parecerem o mesmo IP no rate limit;
-   * errar para mais permite falsificar o IP via X-Forwarded-For.
+   * Quais proxies reversos são confiáveis (valor de `trust proxy` do Express).
+   *
+   * Padrão: só endereços de rede privada. O Render usa vários saltos internos
+   * em 10.0.0.0/8 (em quantidade variável), então um número fixo de saltos
+   * falha; confiando só na rede privada, o IP do cliente é o primeiro endereço
+   * público a partir da direita do X-Forwarded-For e não pode ser forjado.
+   *
+   * Aceita também um número de saltos ("1") ou "true"/"false". Confira após o
+   * deploy com GET /api/v1/health/client-ip: tem que ser o IP público real.
    */
-  TRUST_PROXY: z.coerce.number().int().min(0).default(1),
+  TRUST_PROXY: z
+    .string()
+    .default('loopback, linklocal, uniquelocal')
+    .transform((value): boolean | number | string => {
+      const trimmed = value.trim();
+      if (/^d+$/.test(trimmed)) return Number(trimmed);
+      if (trimmed === 'true') return true;
+      if (trimmed === 'false') return false;
+      return trimmed;
+    }),
   CORS_ORIGINS: z
     .string()
     .default('')
