@@ -4,12 +4,25 @@ import { createUser, findUserByEmail, findUserById, updateUser, findUserByName, 
 import { createSession, deleteSessionByTokenHash, clearActiveSession, findSessionByTokenHash, deleteSessionsByUserId } from '../data/repositories/sessionRepository.js';
 import { createPasswordReset, findValidResetByCodeHash, markResetAsUsed, invalidatePreviousResets } from '../data/repositories/passwordResetRepository.js';
 import { sendPasswordResetEmail } from './emailService.js';
-import type { User } from '../types/mobile-models.js';
+import type { PublicUser, User } from '../types/mobile-models.js';
 
 export interface AuthResult {
   token: string;
-  user: User;
+  user: PublicUser;
 }
+
+/**
+ * Remove os campos sensíveis do usuário antes de enviá-lo ao cliente.
+ * Toda função deste service que devolve usuário para a API passa por aqui,
+ * para que o hash da senha nunca saia do servidor.
+ */
+export function toPublicUser(user: User): PublicUser {
+  const { passwordHash: _passwordHash, ...publicUser } = user;
+  return publicUser;
+}
+
+/** Mensagem única para falha de login: não revela se o e-mail existe. */
+const INVALID_CREDENTIALS_MESSAGE = 'E-mail ou senha inválidos.';
 
 function assertEmail(email: string): void {
   const normalized = email.trim();
@@ -96,11 +109,12 @@ export async function register(params: {
 
   const token = await createSessionForUser(user.id, params.deviceInfo);
 
-  return { token, user };
+  return { token, user: toPublicUser(user) };
 }
 
-export async function acceptTerms(userId: number, version: string = 'v1'): Promise<{ success: boolean; terms_accepted_at: string; terms_version: string; user: User }> {
-  return acceptUserTerms(userId, version);
+export async function acceptTerms(userId: number, version: string = 'v1'): Promise<{ success: boolean; terms_accepted_at: string; terms_version: string; user: PublicUser }> {
+  const result = await acceptUserTerms(userId, version);
+  return { ...result, user: toPublicUser(result.user) };
 }
 
 export async function login(params: {
@@ -113,25 +127,26 @@ export async function login(params: {
 
   const user = await findUserByEmail(params.email);
   if (!user) {
-    throw new Error('Usuario nao encontrado.');
+    throw new Error(INVALID_CREDENTIALS_MESSAGE);
   }
 
   const isValid = await verifyPassword(params.password, user.passwordHash);
   if (!isValid) {
-    throw new Error('Senha incorreta.');
+    throw new Error(INVALID_CREDENTIALS_MESSAGE);
   }
 
   const token = await createSessionForUser(user.id, params.deviceInfo);
 
-  return { token, user };
+  return { token, user: toPublicUser(user) };
 }
 
-export async function getCurrentUser(userId?: number): Promise<User | null> {
+export async function getCurrentUser(userId?: number): Promise<PublicUser | null> {
   if (!userId) {
     return null;
   }
 
-  return findUserById(userId);
+  const user = await findUserById(userId);
+  return user ? toPublicUser(user) : null;
 }
 
 export async function logout(token?: string, userId?: number): Promise<void> {
@@ -146,7 +161,7 @@ export async function logout(token?: string, userId?: number): Promise<void> {
 export async function updateProfile(
   userId: number,
   params: { name: string; email: string; photo?: string | null }
-): Promise<User> {
+): Promise<PublicUser> {
   assertName(params.name);
   assertEmail(params.email);
 
@@ -160,7 +175,8 @@ export async function updateProfile(
     throw new Error('Este nome de usuário já está em uso.');
   }
 
-  return updateUser(userId, params);
+  const updated = await updateUser(userId, params);
+  return toPublicUser(updated);
 }
 
 export async function authenticateToken(token: string): Promise<number | null> {

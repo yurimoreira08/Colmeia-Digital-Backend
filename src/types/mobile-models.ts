@@ -73,3 +73,9 @@ export type User = {
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * Usuário como ele pode sair da API: sem `passwordHash`.
+ * Toda resposta HTTP com dados de usuário deve usar este tipo, nunca `User`.
+ */
+export type PublicUser = Omit<User, 'passwordHash'>;
