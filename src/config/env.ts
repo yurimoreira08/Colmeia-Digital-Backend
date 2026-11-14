@@ -33,6 +33,20 @@ const envSchema = z.object({
     .string()
     .default('')
     .transform((value) => value.split(',').map((origin) => origin.trim()).filter(Boolean)),
+  /** DSN do Sentry. Vazio = Sentry desligado (desenvolvimento, testes). */
+  SENTRY_DSN: z.string().default(''),
+  /** Nível dos logs (trace, debug, info, warn, error, fatal, silent). Vazio = info (silent nos testes). */
+  LOG_LEVEL: z.string().default(''),
+  /**
+   * Fotos em bucket privado: as respostas trazem URLs assinadas com prazo, e não
+   * a URL pública. Só ligue depois de tornar o bucket privado no Supabase.
+   */
+  STORAGE_PRIVATE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  /** Validade das URLs assinadas das fotos, em segundos (padrão: 30 dias). */
+  SIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().default(30 * 24 * 60 * 60),
 });
 
 const parsed = envSchema.safeParse(process.env);

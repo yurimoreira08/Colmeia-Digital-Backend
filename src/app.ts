@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import { router } from './routes/index.js';
 import { parseUserId, requireAuth } from './middlewares/auth.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
+import { requestLogger } from './middlewares/requestLogger.js';
 import { createAuthLimiter, createGeneralLimiter, createPasswordResetEmailLimiter } from './middlewares/rateLimit.js';
 
 /** Limite padrão do corpo JSON. */
@@ -24,6 +25,9 @@ export function createApp() {
   // Padrão: rede privada + Cloudflare, o caminho do Render (ver config/trustedProxies.ts).
   app.set('trust proxy', env.TRUST_PROXY);
 
+  // Primeiro de tudo: id da requisição e log de acesso, inclusive das recusadas pelo rate limit.
+  app.use(requestLogger);
+
   // API só devolve JSON: CSP fechada (default-src 'none') e demais headers do helmet.
   app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } } }));
 
@@ -38,7 +42,7 @@ export function createApp() {
 
   app.use('/api/v1', createGeneralLimiter());
   const authLimiter = createAuthLimiter();
-  app.use(['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/forgot-password', '/api/v1/auth/reset-password'], authLimiter);
+  app.use(['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/forgot-password', '/api/v1/auth/reset-password', '/api/v1/auth/account'], authLimiter);
 
   // O parser de 8 MB roda antes e marca o corpo como lido; o de 1 MB então ignora essa rota.
   app.use('/api/v1/upload', express.json({ limit: BASE64_UPLOAD_JSON_LIMIT }));

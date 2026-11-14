@@ -13,7 +13,8 @@ Convenções de código e de testes. A arquitetura está em [ARQUITETURA.md](ARQ
 - Uploads passam por `storageService.uploadBufferToStorage`.
 - Operações que mexem em mais de uma tabela vão em `prisma.$transaction`.
 - Configuração só via `src/config/env.ts`: adicione a variável no schema Zod e evite `process.env` direto.
-- Não registre no log tokens, códigos de reset, e-mails completos nem payloads com dados pessoais.
+- Não registre no log tokens, códigos de reset, e-mails completos nem payloads com dados pessoais. Use `logger` (`src/lib/logger.ts`) ou `req.log`, nunca `console`; erro vai em `err` (`logger.error({ err }, 'mensagem')`).
+- Foto que entra (manejo, perfil) passa por `toStoredPhotoUrl`; foto que sai, por `withSignedPhotos`/`signPhotoUrl`.
 - Mudou rota, contrato, variável de ambiente ou comando? Atualize o README e os `docs/` na mesma entrega.
 
 ## Organização e legibilidade

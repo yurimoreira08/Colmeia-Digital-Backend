@@ -15,6 +15,7 @@ import {
 import { validate } from '../middlewares/validate.js';
 import {
   acceptTermsBodySchema,
+  deleteAccountBodySchema,
   forgotPasswordBodySchema,
   loginBodySchema,
   registerBodySchema,
@@ -58,6 +59,9 @@ router.patch('/auth/accept-terms', validate({ body: acceptTermsBodySchema }), ap
 router.post('/auth/accept-terms', deprecatedTermsRoute, validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
 router.post('/auth/terms', deprecatedTermsRoute, validate({ body: acceptTermsBodySchema }), apiController.acceptTermsController);
 router.post('/auth/forgot-password', validate({ body: forgotPasswordBodySchema }), apiController.forgotPasswordController);
+// LGPD: exportar os dados e excluir a conta (com a senha).
+router.get('/auth/export', apiController.exportAccountController);
+router.delete('/auth/account', validate({ body: deleteAccountBodySchema }), apiController.deleteAccountController);
 router.post('/auth/reset-password', validate({ body: resetPasswordBodySchema }), apiController.resetPasswordController);
 
 // Sync: só os dados do usuário logado (cada consulta filtra pelo dono).

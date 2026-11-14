@@ -11,6 +11,8 @@ import * as apiaryService from './apiaryService.js';
 import * as boxService from './boxService.js';
 import * as manejoService from './manejoService.js';
 import * as reviewReportService from './reviewReportService.js';
+import { signPhotoUrl } from './storageService.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * - `created`/`updated`: gravado; `id` é o id no servidor.
@@ -85,7 +87,7 @@ async function runItem(localId: number, context: string, work: () => Promise<Omi
   } catch (error) {
     if (error instanceof ItemRejected) return { localId, status: 'rejected', message: error.message };
     if (error instanceof AppError) return { localId, status: 'rejected', message: error.message };
-    console.error(`[sync] Falha inesperada em ${context}:`, error);
+    logger.error({ err: error, item: context }, 'Falha inesperada no POST /sync');
     return { localId, status: 'error', message: 'Falha ao gravar este registro. Ele será reenviado.' };
   }
 }
@@ -210,7 +212,8 @@ export async function pushChanges(userId: number, body: SyncPushBody): Promise<S
         if (item.id) {
           assertOwner(await findFieldRecordOwnerId('manejo', item.id), userId);
           if (await hasConflict('manejos', item.id, item.baseUpdatedAt)) {
-            return { status: 'conflict', id: item.id, server: await findManejoById(item.id) };
+            const server = await findManejoById(item.id);
+            return { status: 'conflict', id: item.id, server: server && { ...server, photoUri: (await signPhotoUrl(server.photoUri)) ?? undefined } };
           }
           await manejoService.updateManejoService(item.id, notes, userId);
           await (item.archived ? manejoService.archiveManejo(item.id, userId) : manejoService.unarchiveManejo(item.id, userId));
@@ -251,7 +254,7 @@ async function deleteItem(userId: number, entity: SyncEntity, id: number): Promi
     else await manejoService.deleteManejoService(id, userId);
     return { entity, id, status: 'deleted' };
   } catch (error) {
-    console.error('[sync] Falha inesperada ao excluir:', error);
+    logger.error({ err: error, entity, id }, 'Falha inesperada ao excluir no POST /sync');
     return { entity, id, status: 'error', message: 'Falha ao excluir. A exclusão será reenviada.' };
   }
 }

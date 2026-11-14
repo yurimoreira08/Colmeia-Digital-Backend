@@ -1,5 +1,6 @@
 /** Controllers: Manejos. */
 import type { Request, Response } from 'express';
+import { withSignedPhotos } from '../services/storageService.js';
 import * as manejoService from '../services/manejoService.js';
 import { sendErrorResponse } from '../middlewares/errorHandler.js';
 
@@ -15,7 +16,7 @@ export async function listManejosController(req: Request, res: Response): Promis
       caixaId,
       includeArchived,
     }, req.userId);
-    res.status(200).json(manejos);
+    res.status(200).json(await withSignedPhotos(manejos, 'photoUri'));
   } catch (error) {
     sendErrorResponse(res, error, 'Erro ao listar manejos.', 'listManejosController');
   }

@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { AppError } from '../errors/AppError.js';
+import { logger } from '../lib/logger.js';
+import { captureUnexpectedError } from '../lib/sentry.js';
 
 const INTERNAL_ERROR_MESSAGE = 'Erro interno do servidor. Tente novamente em instantes.';
 
@@ -19,7 +21,10 @@ export function sendErrorResponse(res: Response, error: unknown, fallbackMessage
     return;
   }
 
-  console.error(`[${logTag}]`, error instanceof Error ? `${error.name}: ${error.message}` : error);
+  // res.req existe em toda resposta do Express; o log da requisição já traz o id dela.
+  const req = res.req as Request | undefined;
+  (req?.log ?? logger).error({ err: error, handler: logTag }, 'Erro inesperado');
+  captureUnexpectedError(error, { tag: logTag, requestId: req?.id ? String(req.id) : undefined, userId: req?.userId });
   res.status(500).json({ message: fallbackMessage });
 }
 

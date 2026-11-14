@@ -36,3 +36,6 @@ export const resetPasswordBodySchema = z.object({
   code: z.string({ error: 'Informe o código de verificação de 6 dígitos.' }).max(12),
   newPassword: z.string({ error: 'Informe a nova senha.' }).max(256, 'Senha muito longa.'),
 });
+
+/** DELETE /auth/account: a senha confirma que é o dono da conta quem pede a exclusão. */
+export const deleteAccountBodySchema = z.object({ password: passwordField });

@@ -104,6 +104,26 @@ Fluxo de migration:
    - **Migration que remove ou muda** coluna usada pelo código atual: push primeiro (código que não depende dela), espere o `/health` mostrar o commit, depois a migration.
 7. `npm run db:migrate:status` deve dizer que está tudo aplicado.
 
+**Backup agendado** (`.github/workflows/backup.yml`): todo dia às 03:00 (Brasília) e sob demanda. Faz o `pg_dump` do schema public, restaura num Postgres vazio para provar que o backup abre (e avisa se faltar migration), criptografa com AES-256 (gpg) e guarda como artefato por 30 dias. O repositório é público: o dump nunca sai em texto puro, e o log não mostra dados nem contagens. Segredos: `BACKUP_DATABASE_URL` e `BACKUP_PASSPHRASE`. Para abrir: `gpg --decrypt backup.sql.gpg > backup.sql` e o passo 2 de [BANCO-LOCAL.md](BANCO-LOCAL.md).
+
+## Observabilidade
+
+- **Logs** (`src/lib/logger.ts`, pino): JSON, uma linha por evento. Senha, token, código de reset, e-mail e cabeçalhos de autenticação saem como "[oculto]". Use `logger` (ou `req.log`, que já traz o id da requisição), nunca `console`.
+- **Id da requisição** (`middlewares/requestLogger.ts`): toda resposta traz `X-Request-Id` (gerado, ou o do cliente, se for seguro), e o log de acesso registra método, caminho sem query, status e duração.
+- **Sentry** (`src/lib/sentry.ts`): só liga com `SENTRY_DSN`. Recebe os erros inesperados (500) de `sendErrorResponse`, com o id da requisição e do usuário. Sem IP, cookies, corpo, query nem cabeçalho de autenticação.
+- **Desligamento gracioso** (`server.ts`): no SIGTERM do Render, para de aceitar conexões, espera as requisições em andamento (até 10 s), fecha o Prisma e esvazia a fila do Sentry.
+
+## Dados pessoais (LGPD)
+
+- `GET /auth/export`: perfil e tudo o que o usuário cadastrou (inclusive arquivados), num JSON para download.
+- `DELETE /auth/account` com `{ password }`: confere a senha (com o rate limit da autenticação), apaga numa transação a conta e todos os dados (manejos, revisões, caixas, apiários, notificações, sessões, códigos de reset, registros de exclusão) e, depois, as fotos do usuário no storage. Se o storage falhar, os dados já saíram e o log registra as fotos para limpeza manual.
+
+## Fotos e storage
+
+- O banco guarda a URL **sem prazo** da foto (`toStoredPhotoUrl`): URLs assinadas recebidas do app voltam para essa forma ao salvar.
+- Com `STORAGE_PRIVATE=true`, as respostas (manejos, pull do sync, conflito do lote, exportação, upload e foto de perfil) trazem URLs assinadas, válidas por `SIGNED_URL_TTL_SECONDS` (30 dias), geradas numa chamada só por resposta. O app faz um download completo a cada 7 dias, que renova as URLs.
+- Para ativar: tornar o bucket privado no Supabase e definir `STORAGE_PRIVATE=true` no Render, nessa ordem e juntos (com a flag desligada e o bucket privado, as fotos param de abrir).
+
 ## Variáveis de ambiente
 
 Modelo completo em `.env.example` (o `.env` real é ignorado pelo git).
@@ -118,6 +138,9 @@ Modelo completo em `.env.example` (o `.env` real é ignorado pelo git).
 | `CORS_ORIGINS` | Origens web separadas por vírgula; vazio = nenhuma |
 | `TRUST_PROXY` | Vazio = rede privada + Cloudflare |
 | `RENDER_GIT_COMMIT` | Definida pelo Render; aparece no `/health` |
+| `SENTRY_DSN` | Sentry; vazio = desligado |
+| `LOG_LEVEL` | Nível dos logs; vazio = info (silent nos testes) |
+| `STORAGE_PRIVATE`, `SIGNED_URL_TTL_SECONDS` | Fotos em bucket privado com URLs assinadas (ver "Fotos e storage") |
 
 ## Contrato com o app
 

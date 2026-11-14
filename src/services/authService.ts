@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { signPhotoUrl, toStoredPhotoUrl } from './storageService.js';
 import bcrypt from 'bcryptjs';
 import { createUser, findUserByEmail, findUserById, updateUser, findUserByName, updateUserPassword, acceptUserTerms } from '../data/repositories/userRepository.js';
 import { createSession, deleteSessionByTokenHash, clearActiveSession, findSessionByTokenHash, deleteSessionsByUserId } from '../data/repositories/sessionRepository.js';
@@ -6,6 +7,7 @@ import { createPasswordReset, findValidResetByCodeHash, incrementResetAttempts, 
 import { AppError } from '../errors/AppError.js';
 import { sendPasswordResetEmail } from './emailService.js';
 import type { PublicUser, User } from '../types/mobile-models.js';
+import { logger } from '../lib/logger.js';
 
 export interface AuthResult {
   token: string;
@@ -192,7 +194,7 @@ export async function login(params: {
       await updateUserPassword(user.id, await hashPassword(params.password));
     } catch (error) {
       // Falhar a migração do hash não deve impedir o login; tenta de novo no próximo.
-      console.error('[authService] Falha ao regravar hash de senha:', error instanceof Error ? error.name : error);
+      logger.warn({ err: error }, 'Falha ao regravar o hash da senha no login');
     }
   }
 
@@ -236,7 +238,8 @@ export async function updateProfile(
     throw new AppError('Este nome de usuário já está em uso.');
   }
 
-  const updated = await updateUser(userId, params);
+  // A foto pode chegar como URL assinada (bucket privado): guarda a forma sem prazo.
+  const updated = await updateUser(userId, { ...params, photo: toStoredPhotoUrl(params.photo) });
   return toPublicUser(updated);
 }
 
@@ -276,7 +279,7 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
   const sent = await sendPasswordResetEmail(user.email, rawCode, user.name);
   if (!sent) {
     // Sem detalhes do usuário no log; a resposta continua genérica.
-    console.error('[authService] Código de recuperação gerado, mas o e-mail não foi enviado.');
+    logger.error('Código de recuperação gerado, mas o e-mail não foi enviado');
   }
 
   return genericResponse;
@@ -332,4 +335,10 @@ export async function resetPasswordWithCode(params: {
     success: true,
     message: 'Senha redefinida com sucesso. Faça login com sua nova senha.',
   };
+}
+
+/** Usuário com a foto de perfil em URL assinada, quando o bucket é privado. */
+export async function withSignedUserPhoto<T extends { photo?: string | null }>(user: T): Promise<T> {
+  if (!user?.photo) return user;
+  return { ...user, photo: await signPhotoUrl(user.photo) };
 }

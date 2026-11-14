@@ -17,6 +17,9 @@ export interface RecordedUpload {
 
 export const uploads: RecordedUpload[] = [];
 
+/** Arquivos que existem no bucket simulado (caminho completo). */
+export const storedFiles = new Set<string>();
+
 export const uploadMock = vi.fn(async () => ({ data: {}, error: null as null | { message: string } }));
 
 export function createClient() {
@@ -26,7 +29,23 @@ export function createClient() {
         return {
           async upload(path: string, body: unknown, options: RecordedUpload['options']) {
             uploads.push({ bucket, path, body, options });
+            storedFiles.add(path);
             return uploadMock();
+          },
+          /** Filhos diretos de `prefix`, como o Supabase (pastas vêm sem id). */
+          async list(prefix: string) {
+            const files = [...storedFiles].filter((p) => p.startsWith(`${prefix}/`) && !p.slice(prefix.length + 1).includes('/'));
+            return { data: files.map((p) => ({ id: p, name: p.slice(prefix.length + 1) })), error: null };
+          },
+          async remove(paths: string[]) {
+            paths.forEach((p) => storedFiles.delete(p));
+            return { data: paths.map((name) => ({ name })), error: null };
+          },
+          async createSignedUrls(paths: string[], expiresIn: number) {
+            return {
+              data: paths.map((path) => ({ path, signedUrl: `https://test-project.supabase.co/storage/v1/object/sign/${bucket}/${path}?token=t&ttl=${expiresIn}`, error: null })),
+              error: null,
+            };
           },
           getPublicUrl(path: string) {
             return { data: { publicUrl: `https://test-project.supabase.co/storage/v1/object/public/${bucket}/${path}` } };
@@ -39,6 +58,7 @@ export function createClient() {
 
 export function resetSupabaseMock(): void {
   uploads.length = 0;
+  storedFiles.clear();
   uploadMock.mockReset();
   uploadMock.mockResolvedValue({ data: {}, error: null });
 }

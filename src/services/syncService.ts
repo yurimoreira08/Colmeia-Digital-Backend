@@ -5,6 +5,7 @@ import { listManejos } from '../data/repositories/manejoRepository.js';
 import { listRecentNotifications, type NotificationRecord } from '../data/repositories/notificationsRepository.js';
 import { listReviewReports } from '../data/repositories/reviewReportRepository.js';
 import type { Apiary, Box, ManejoReport, ReviewReport } from '../types/mobile-models.js';
+import { withSignedPhotos } from './storageService.js';
 
 /**
  * Margem ao buscar "o que mudou desde o último sync": uma gravação que
@@ -48,5 +49,14 @@ export async function getChangesSince(userId: number, since: Date | null): Promi
     updatedSince ? findDeletionsSince(userId, updatedSince) : Promise.resolve([]),
   ]);
 
-  return { serverTime: serverTime.toISOString(), full: !since, apiaries, boxes, revisions, manejos, notifications, deletions };
+  return {
+    serverTime: serverTime.toISOString(),
+    full: !since,
+    apiaries,
+    boxes,
+    revisions,
+    manejos: await withSignedPhotos(manejos, 'photoUri'),
+    notifications,
+    deletions,
+  };
 }

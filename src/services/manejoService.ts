@@ -1,3 +1,4 @@
+import { toStoredPhotoUrl } from './storageService.js';
 import {
   deleteManejo,
   listManejos,
@@ -24,7 +25,7 @@ export async function saveManejoService(
   },
   userId?: number,
 ): Promise<ManejoReport> {
-  return saveManejo(params, userId);
+  return saveManejo({ ...params, photoUri: toStoredPhotoUrl(params.photoUri) }, userId);
 }
 
 export async function listManejoReports(
@@ -53,7 +54,7 @@ export async function updateManejoService(
   },
   userId?: number,
 ): Promise<void> {
-  await updateManejo(id, params, userId);
+  await updateManejo(id, { ...params, photoUri: toStoredPhotoUrl(params.photoUri) }, userId);
 }
 
 export async function archiveManejo(id: number, userId?: number): Promise<void> {

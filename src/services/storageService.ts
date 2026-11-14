@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
+import { logger } from '../lib/logger.js';
 
 let cachedClient: SupabaseClient | null = null;
 let lastUsedUrl = '';
@@ -49,6 +50,11 @@ function getSupabaseClient(): SupabaseClient {
   });
 
   return cachedClient;
+}
+
+/** Nome do bucket das imagens. Lido a cada chamada, como as credenciais em getSupabaseClient. */
+function bucketName(): string {
+  return (process.env.SUPABASE_BUCKET_NAME || env.SUPABASE_BUCKET_NAME || 'colmeia-digital').trim();
 }
 
 /** Pastas permitidas no bucket. A pasta vem do cliente, então é sempre normalizada para uma destas. */
@@ -160,27 +166,126 @@ export async function uploadBufferToStorage(params: UploadBufferParams): Promise
   }
 
   const client = getSupabaseClient();
-  const bucketName = (env.SUPABASE_BUCKET_NAME || 'colmeia-digital').trim();
 
   const uniqueId = randomUUID().replace(/-/g, '').slice(0, 12);
   const filePath = `${folder}/${userId}/${Date.now()}_${uniqueId}.${ALLOWED_IMAGE_TYPES[mimeType]}`;
 
   const { error: uploadError } = await client.storage
-    .from(bucketName)
+    .from(bucketName())
     .upload(filePath, buffer, {
       contentType: mimeType,
       upsert: false,
     });
 
   if (uploadError) {
-    console.error('[StorageService] Erro no upload para o Supabase:', uploadError.message);
+    logger.error({ storageError: uploadError.message }, 'Falha no upload para o Supabase Storage');
     throw new Error('Falha no upload para o Supabase Storage.');
   }
 
-  const { data } = client.storage.from(bucketName).getPublicUrl(filePath);
+  const { data } = client.storage.from(bucketName()).getPublicUrl(filePath);
 
+  // Bucket privado: o app recebe uma URL assinada para mostrar a foto já; ao salvar
+  // o registro, ela volta para a forma sem prazo (toStoredPhotoUrl).
   return {
-    url: data.publicUrl,
+    url: (await signPhotoUrl(data.publicUrl)) ?? data.publicUrl,
     path: filePath,
   };
+}
+
+/**
+ * Apaga todas as imagens do usuário no bucket (`manejos/<id>/`,
+ * `profiles/<id>/` e `geral/<id>/`). Usado na exclusão da conta (LGPD).
+ *
+ * @returns quantos arquivos foram apagados.
+ */
+export async function deleteUserFiles(userId: number): Promise<number> {
+  const client = getSupabaseClient();
+  const bucket = client.storage.from(bucketName());
+  let removed = 0;
+
+  for (const folder of ['manejos', 'profiles', 'geral'] satisfies StorageFolder[]) {
+    const prefix = `${folder}/${userId}`;
+    // Lista em páginas: o Supabase devolve no máximo 1000 por chamada (até 50 páginas, por segurança).
+    for (let page = 0; page < 50; page++) {
+      const { data, error } = await bucket.list(prefix, { limit: 1000 });
+      if (error) throw new Error(`Falha ao listar ${prefix}: ${error.message}`);
+      const paths = (data ?? []).filter((file) => file.id).map((file) => `${prefix}/${file.name}`);
+      if (paths.length === 0) break;
+      const { error: removeError } = await bucket.remove(paths);
+      if (removeError) throw new Error(`Falha ao apagar arquivos de ${prefix}: ${removeError.message}`);
+      removed += paths.length;
+    }
+  }
+  return removed;
+}
+
+/** Fotos em bucket privado? Lido a cada chamada, para poder virar sem reiniciar nos testes. */
+function isStoragePrivate(): boolean {
+  return (process.env.STORAGE_PRIVATE ?? String(env.STORAGE_PRIVATE)) === 'true';
+}
+
+/**
+ * Caminho da imagem dentro do nosso bucket, a partir de uma URL pública ou
+ * assinada do Supabase. `null` para qualquer outra URL (ou texto).
+ */
+export function storagePathFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/([^?#]+)/);
+  if (!match || match[1] !== bucketName()) return null;
+  return decodeURIComponent(match[2]);
+}
+
+/**
+ * Forma guardada no banco: a URL pública "canônica" do arquivo, sem token.
+ * O app pode devolver uma URL assinada (que vence); salvar a canônica evita
+ * guardar um link que expira. URLs de fora do bucket passam como vieram.
+ */
+export function toStoredPhotoUrl<T extends string | null | undefined>(url: T): T | string {
+  const path = storagePathFromUrl(url);
+  if (!path) return url;
+  return getSupabaseClient().storage.from(bucketName()).getPublicUrl(path).data.publicUrl;
+}
+
+/**
+ * Troca as URLs do bucket por URLs assinadas (com prazo) quando o bucket é
+ * privado. Com o bucket público, devolve as URLs como estão. Uma chamada ao
+ * Supabase para todas as fotos.
+ *
+ * @returns mapa URL guardada → URL para o cliente.
+ */
+export async function signPhotoUrls(urls: Array<string | null | undefined>): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (!isStoragePrivate()) return result;
+
+  const byPath = new Map<string, string>();
+  for (const url of urls) {
+    const path = storagePathFromUrl(url);
+    if (path && url) byPath.set(path, url);
+  }
+  if (byPath.size === 0) return result;
+
+  const ttl = Number(process.env.SIGNED_URL_TTL_SECONDS) || env.SIGNED_URL_TTL_SECONDS;
+  const { data, error } = await getSupabaseClient().storage.from(bucketName()).createSignedUrls([...byPath.keys()], ttl);
+  if (error) throw new Error(`Falha ao assinar as URLs das fotos: ${error.message}`);
+  for (const item of data ?? []) {
+    const original = item.path ? byPath.get(item.path) : undefined;
+    if (original && item.signedUrl) result.set(original, item.signedUrl);
+  }
+  return result;
+}
+
+/** Aplica `signPhotoUrls` no campo de foto de uma lista de registros. */
+export async function withSignedPhotos<T>(items: T[], field: keyof T): Promise<T[]> {
+  const signed = await signPhotoUrls(items.map((item) => item[field] as unknown as string | undefined));
+  if (signed.size === 0) return items;
+  return items.map((item) => {
+    const url = item[field] as unknown as string | undefined;
+    return url && signed.has(url) ? { ...item, [field]: signed.get(url) } : item;
+  });
+}
+
+/** URL para o cliente de uma imagem só (ex.: upload recém-feito, foto de perfil). */
+export async function signPhotoUrl(url: string | null | undefined): Promise<string | null | undefined> {
+  if (!url) return url;
+  return (await signPhotoUrls([url])).get(url) ?? url;
 }

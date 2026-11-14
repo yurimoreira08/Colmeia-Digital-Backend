@@ -1,0 +1,98 @@
+# Backup diário do banco de produção (Supabase) com teste de restauração.
+#
+# O repositório é público: o dump nunca sai em texto puro. Ele é criptografado
+# (AES-256, gpg) antes de virar artefato, e só quem tem BACKUP_PASSPHRASE abre.
+#
+# Segredos do repositório (Settings > Secrets and variables > Actions):
+#   BACKUP_DATABASE_URL  conexão direta do Supabase (porta 5432), só leitura é suficiente
+#   BACKUP_PASSPHRASE    frase longa para criptografar o dump (guarde fora do GitHub)
+#
+# Restaurar um backup baixado:
+#   gpg --decrypt backup.sql.gpg > backup.sql   (pede a frase)
+#   e siga docs/BANCO-LOCAL.md.
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 03:00 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # Banco descartável para provar que o backup restaura.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: restore
+          POSTGRES_PASSWORD: restore
+          POSTGRES_DB: restore
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      RESTORE_URL: postgresql://restore:restore@localhost:5432/restore
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confere os segredos
+        run: |
+          if [ -z "$BACKUP_DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Defina os segredos BACKUP_DATABASE_URL e BACKUP_PASSPHRASE no repositório."
+            exit 1
+          fi
+
+      - name: Instala o cliente do PostgreSQL 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Gera o dump (schema public, como scripts/backup-db.ps1)
+        run: |
+          /usr/lib/postgresql/17/bin/pg_dump --schema=public --clean --if-exists --no-owner --no-privileges \
+            --dbname="$BACKUP_DATABASE_URL" --file=backup.sql
+          test -s backup.sql
+
+      - name: Teste de restauração num banco vazio
+        run: |
+          psql "$RESTORE_URL" -v ON_ERROR_STOP=1 -q -f backup.sql
+          expected=$(ls -d prisma/migrations/*/ | wc -l)
+          applied=$(psql "$RESTORE_URL" -tAc "SELECT count(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL")
+          # Os logs de repositório público são públicos: nada de contagem de usuários ou dados.
+          echo "Migrations: $applied de $expected."
+          {
+            echo "### Backup restaurado com sucesso"
+            echo "- Migrations aplicadas: $applied de $expected"
+            echo "- Tabelas do app: $(psql "$RESTORE_URL" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Diferença é aviso, não falha: logo depois de um merge, a migration nova pode
+          # ainda não ter sido aplicada em produção (ver docs/ARQUITETURA.md).
+          if [ "$applied" -ne "$expected" ]; then
+            echo "::warning::O backup tem $applied migrations, mas o repositório tem $expected. Confira npm run db:migrate:status."
+          fi
+
+      - name: Criptografa o dump
+        run: |
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 --output backup.sql.gpg backup.sql
+          shred -u backup.sql
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: backup.sql.gpg
+          retention-days: 30
+          if-no-files-found: error

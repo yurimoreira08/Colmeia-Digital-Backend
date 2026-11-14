@@ -1,5 +1,6 @@
 /** Controllers: Cadastro, login, sessão, perfil, termos e recuperação de senha. */
 import type { Request, Response } from 'express';
+import * as accountService from '../services/accountService.js';
 import * as authService from '../services/authService.js';
 import { authenticatedUserId } from '../middlewares/auth.js';
 import { sendErrorResponse } from '../middlewares/errorHandler.js';
@@ -7,7 +8,7 @@ import { sendErrorResponse } from '../middlewares/errorHandler.js';
 export async function registerController(req: Request, res: Response): Promise<void> {
   try {
     const result = await authService.register(req.body);
-    res.status(201).json({ ...result.user, token: result.token });
+    res.status(201).json({ ...(await authService.withSignedUserPhoto(result.user)), token: result.token });
   } catch (error) {
     sendErrorResponse(res, error, 'Erro no registro.', 'registerController');
   }
@@ -16,7 +17,7 @@ export async function registerController(req: Request, res: Response): Promise<v
 export async function loginController(req: Request, res: Response): Promise<void> {
   try {
     const result = await authService.login(req.body);
-    res.status(200).json({ ...result.user, token: result.token });
+    res.status(200).json({ ...(await authService.withSignedUserPhoto(result.user)), token: result.token });
   } catch (error) {
     sendErrorResponse(res, error, 'Erro no login.', 'loginController');
   }
@@ -25,7 +26,7 @@ export async function loginController(req: Request, res: Response): Promise<void
 export async function meController(req: Request, res: Response): Promise<void> {
   try {
     const user = await authService.getCurrentUser(req.userId);
-    res.status(200).json(user);
+    res.status(200).json(user ? await authService.withSignedUserPhoto(user) : user);
   } catch (error) {
     sendErrorResponse(res, error, 'Erro ao obter dados da sessão.', 'meController');
   }
@@ -43,7 +44,7 @@ export async function logoutController(req: Request, res: Response): Promise<voi
 export async function updateProfileController(req: Request, res: Response): Promise<void> {
   try {
     const updated = await authService.updateProfile(authenticatedUserId(req), req.body);
-    res.status(200).json(updated);
+    res.status(200).json(await authService.withSignedUserPhoto(updated));
   } catch (error) {
     sendErrorResponse(res, error, 'Erro ao atualizar perfil.', 'updateProfileController');
   }
@@ -76,5 +77,26 @@ export async function resetPasswordController(req: Request, res: Response): Prom
     res.status(200).json(result);
   } catch (error) {
     sendErrorResponse(res, error, 'Erro ao redefinir senha.', 'resetPasswordController');
+  }
+}
+
+/** DELETE /auth/account: exclui a conta e todos os dados (LGPD). Exige a senha. */
+export async function deleteAccountController(req: Request, res: Response): Promise<void> {
+  try {
+    await accountService.deleteAccount(authenticatedUserId(req), req.body.password);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    sendErrorResponse(res, error, 'Erro ao excluir a conta.', 'deleteAccountController');
+  }
+}
+
+/** GET /auth/export: todos os dados do usuário num JSON (LGPD). */
+export async function exportAccountController(req: Request, res: Response): Promise<void> {
+  try {
+    const data = await accountService.exportAccountData(authenticatedUserId(req));
+    res.setHeader('Content-Disposition', 'attachment; filename="colmeia-digital-meus-dados.json"');
+    res.status(200).json(data);
+  } catch (error) {
+    sendErrorResponse(res, error, 'Erro ao exportar os dados.', 'exportAccountController');
   }
 }

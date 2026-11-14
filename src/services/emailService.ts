@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import { isProductionRuntime } from '../config/runtime.js';
+import { logger } from '../lib/logger.js';
 
 dotenv.config();
 
@@ -57,13 +58,13 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
       });
 
       if (res.ok) {
-        console.log('[EMAIL] E-mail enviado via Resend API.');
+        logger.info({ provider: 'resend' }, 'E-mail enviado');
         return true;
       } else {
-        console.error(`[EMAIL] Falha ao enviar via Resend API (status ${res.status}).`);
+        logger.error({ provider: 'resend', status: res.status }, 'Falha ao enviar e-mail');
       }
     } catch (err) {
-      console.error('[EMAIL] Erro de rede ao conectar com a Resend API:', err instanceof Error ? err.name : err);
+      logger.error({ provider: 'resend', errorName: err instanceof Error ? err.name : String(err) }, 'Erro de rede ao enviar e-mail');
     }
   }
 
@@ -95,12 +96,12 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
         html,
       });
 
-      console.log('[EMAIL] E-mail enviado via SMTP.');
+      logger.info({ provider: 'smtp' }, 'E-mail enviado');
       return true;
     } catch (err) {
       // A mensagem do erro do SMTP pode citar o destinatário; registra só o código.
       const code = (err as { code?: string })?.code ?? (err instanceof Error ? err.name : 'erro desconhecido');
-      console.error(`[EMAIL] Falha ao enviar e-mail via SMTP (${code}).`);
+      logger.error({ provider: 'smtp', code }, 'Falha ao enviar e-mail');
     }
   }
 
@@ -113,7 +114,7 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
 
   // 3. Sem provedor configurado
   if (isProductionRuntime()) {
-    console.error('[EMAIL] Nenhum provedor de e-mail configurado (RESEND_API_KEY ou SMTP_*). E-mail não enviado.');
+    logger.error('Nenhum provedor de e-mail configurado (RESEND_API_KEY ou SMTP_*): e-mail não enviado');
     return false;
   }
 
