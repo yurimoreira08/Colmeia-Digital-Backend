@@ -83,7 +83,7 @@ export async function updateUser(
   const data: any = {};
   if (params.name) data.name = params.name.trim();
   if (params.email) data.email = params.email.trim().toLowerCase();
-  if (params.hasOwnProperty('photo')) {
+  if (Object.hasOwn(params, 'photo')) {
     data.photo = params.photo || null;
   }
   if (params.termsAcceptedVersion) {

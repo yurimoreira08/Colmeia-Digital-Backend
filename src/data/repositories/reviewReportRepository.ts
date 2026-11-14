@@ -2,7 +2,7 @@ import { prisma } from '../prisma.js';
 import type { ReviewReport } from '../../types/mobile-models.js';
 
 function mapPrismaReview(r: any): ReviewReport {
-  let checked: string[] = [];
+  let checked: string[];
   try {
     checked = JSON.parse(r.checked_options);
   } catch {

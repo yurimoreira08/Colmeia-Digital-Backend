@@ -1,7 +1,6 @@
 import {
   countBoxesByApiary,
   createBox,
-  deleteBoxesAfterPosition,
   getMaxBoxPosition,
   listBoxes,
   renameBox,

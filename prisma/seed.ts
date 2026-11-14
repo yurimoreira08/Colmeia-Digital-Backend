@@ -66,7 +66,7 @@ async function main() {
     },
   });
 
-  const box2 = await prisma.box.create({
+  await prisma.box.create({
     data: {
       apiary_id: apiary1.id,
       user_id: user.id,
@@ -76,7 +76,7 @@ async function main() {
     },
   });
 
-  const box3 = await prisma.box.create({
+  await prisma.box.create({
     data: {
       apiary_id: apiary2.id,
       user_id: user.id,

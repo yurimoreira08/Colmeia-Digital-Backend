@@ -1,4 +1,4 @@
-import { requestPasswordReset, resetPasswordWithCode, login, register } from '../src/services/authService.js';
+import { requestPasswordReset, resetPasswordWithCode, register } from '../src/services/authService.js';
 import { prisma } from '../src/data/prisma.js';
 
 async function main() {
