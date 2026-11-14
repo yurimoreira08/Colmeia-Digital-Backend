@@ -5,7 +5,6 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { router } from './routes/index.js';
 import { parseUserId, requireAuth } from './middlewares/auth.js';
-import { checkRole } from './middlewares/checkRole.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 import { createAuthLimiter, createGeneralLimiter, createPasswordResetEmailLimiter } from './middlewares/rateLimit.js';
 
@@ -50,7 +49,6 @@ export function createApp() {
 
   app.use(parseUserId);
   app.use(requireAuth);
-  app.use(checkRole);
 
   app.use('/api/v1', router);
 

@@ -55,8 +55,10 @@ describe('POST /api/v1/apiaries (atualização com id)', () => {
       .set('Authorization', authHeader(OTHER_USER_ID))
       .send({ id: 10, name: 'Invadido', location: 'Outro lugar', boxCount: '1' });
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ message: 'Apiário não encontrado.' });
+    // 403 (e não 404): o sync do app trata 403 de apiário marcando o registro
+    // como resolvido; com 404 ele ficaria reenviando para sempre.
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ message: 'Acesso negado. Este recurso pertence a outro usuário.' });
     expect(ownerApiary.name).toBe('Apiário Sede');
     expect(ownerApiary.location).toBe('Teresina');
   });
@@ -70,6 +72,16 @@ describe('POST /api/v1/apiaries (atualização com id)', () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ id: 10, name: 'Apiário Renomeado', location: 'Parnaíba' });
     expect(ownerApiary.name).toBe('Apiário Renomeado');
+  });
+
+  it('responde 404 para apiário que não existe', async () => {
+    const response = await request(createApp())
+      .post('/api/v1/apiaries')
+      .set('Authorization', authHeader(OWNER_ID))
+      .send({ id: 999, name: 'Fantasma', location: 'X', boxCount: '1' });
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ message: 'Apiário não encontrado.' });
   });
 
   it('exige autenticação', async () => {

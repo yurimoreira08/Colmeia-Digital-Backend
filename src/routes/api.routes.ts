@@ -1,6 +1,16 @@
 import { Router } from 'express';
 import multer from 'multer';
 import * as apiController from '../controllers/api.controller.js';
+import {
+  requireApiaryForSave,
+  requireApiaryFromBody,
+  requireApiaryFromParams,
+  requireApiaryFromQuery,
+  requireBoxFromParams,
+  requireManejoFromParams,
+  requireRecordTargetFromBody,
+  requireRevisionFromParams,
+} from '../middlewares/authorize.js';
 import { validate } from '../middlewares/validate.js';
 import {
   acceptTermsBodySchema,
@@ -23,7 +33,10 @@ import {
 
 const router = Router();
 
-/** Rotas que só recebem `:id`. */
+/**
+ * Ordem em cada rota: validate() (formato) → require*() (posse) → controller.
+ * Rotas que só recebem `:id`.
+ */
 const withId = validate({ params: idParamsSchema });
 
 // Auth
@@ -41,33 +54,33 @@ router.post('/auth/reset-password', validate({ body: resetPasswordBodySchema }),
 
 // Apiaries
 router.get('/apiaries', apiController.listApiariesController);
-router.get('/apiaries/:id', withId, apiController.getApiaryController);
-router.post('/apiaries', validate({ body: saveApiaryBodySchema }), apiController.saveApiaryController);
-router.delete('/apiaries/:id', withId, apiController.deleteApiaryController);
+router.get('/apiaries/:id', withId, requireApiaryFromParams, apiController.getApiaryController);
+router.post('/apiaries', validate({ body: saveApiaryBodySchema }), requireApiaryForSave, apiController.saveApiaryController);
+router.delete('/apiaries/:id', withId, requireApiaryFromParams, apiController.deleteApiaryController);
 
 // Boxes
-router.get('/boxes', validate({ query: listBoxesQuerySchema }), apiController.listBoxesController);
-router.post('/boxes', validate({ body: createBoxBodySchema }), apiController.createBoxController);
-router.put('/boxes/:id/rename', validate({ params: idParamsSchema, body: renameBoxBodySchema }), apiController.renameBoxController);
-router.delete('/boxes/:id', withId, apiController.deleteBoxController);
-router.post('/boxes/:id/archive', withId, apiController.archiveBoxController);
-router.post('/boxes/:id/unarchive', withId, apiController.unarchiveBoxController);
+router.get('/boxes', validate({ query: listBoxesQuerySchema }), requireApiaryFromQuery, apiController.listBoxesController);
+router.post('/boxes', validate({ body: createBoxBodySchema }), requireApiaryFromBody, apiController.createBoxController);
+router.put('/boxes/:id/rename', validate({ params: idParamsSchema, body: renameBoxBodySchema }), requireBoxFromParams, apiController.renameBoxController);
+router.delete('/boxes/:id', withId, requireBoxFromParams, apiController.deleteBoxController);
+router.post('/boxes/:id/archive', withId, requireBoxFromParams, apiController.archiveBoxController);
+router.post('/boxes/:id/unarchive', withId, requireBoxFromParams, apiController.unarchiveBoxController);
 
 // Revisions
-router.get('/revisions', validate({ query: listRecordsQuerySchema }), apiController.listRevisionsController);
-router.post('/revisions', validate({ body: saveRevisionBodySchema }), apiController.saveRevisionController);
-router.put('/revisions/:id', validate({ params: idParamsSchema, body: updateRevisionBodySchema }), apiController.updateRevisionController);
-router.delete('/revisions/:id', withId, apiController.deleteRevisionController);
-router.post('/revisions/:id/archive', withId, apiController.archiveRevisionController);
-router.post('/revisions/:id/unarchive', withId, apiController.unarchiveRevisionController);
+router.get('/revisions', validate({ query: listRecordsQuerySchema }), requireApiaryFromQuery, apiController.listRevisionsController);
+router.post('/revisions', validate({ body: saveRevisionBodySchema }), requireRecordTargetFromBody, apiController.saveRevisionController);
+router.put('/revisions/:id', validate({ params: idParamsSchema, body: updateRevisionBodySchema }), requireRevisionFromParams, apiController.updateRevisionController);
+router.delete('/revisions/:id', withId, requireRevisionFromParams, apiController.deleteRevisionController);
+router.post('/revisions/:id/archive', withId, requireRevisionFromParams, apiController.archiveRevisionController);
+router.post('/revisions/:id/unarchive', withId, requireRevisionFromParams, apiController.unarchiveRevisionController);
 
 // Manejos
-router.get('/manejos', validate({ query: listRecordsQuerySchema }), apiController.listManejosController);
-router.post('/manejos', validate({ body: saveManejoBodySchema }), apiController.saveManejoController);
-router.put('/manejos/:id', validate({ params: idParamsSchema, body: updateManejoBodySchema }), apiController.updateManejoController);
-router.delete('/manejos/:id', withId, apiController.deleteManejoController);
-router.post('/manejos/:id/archive', withId, apiController.archiveManejoController);
-router.post('/manejos/:id/unarchive', withId, apiController.unarchiveManejoController);
+router.get('/manejos', validate({ query: listRecordsQuerySchema }), requireApiaryFromQuery, apiController.listManejosController);
+router.post('/manejos', validate({ body: saveManejoBodySchema }), requireRecordTargetFromBody, apiController.saveManejoController);
+router.put('/manejos/:id', validate({ params: idParamsSchema, body: updateManejoBodySchema }), requireManejoFromParams, apiController.updateManejoController);
+router.delete('/manejos/:id', withId, requireManejoFromParams, apiController.deleteManejoController);
+router.post('/manejos/:id/archive', withId, requireManejoFromParams, apiController.archiveManejoController);
+router.post('/manejos/:id/unarchive', withId, requireManejoFromParams, apiController.unarchiveManejoController);
 
 // Notifications
 router.get('/notifications', apiController.listNotificationsController);

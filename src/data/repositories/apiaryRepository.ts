@@ -118,7 +118,7 @@ export async function createApiary(
  *
  * O filtro por `user_id` fica dentro do próprio `where` da escrita (e não numa
  * checagem prévia) para que não exista caminho em que um usuário altere o
- * apiário de outro — o `checkRole` não cobre `POST /apiaries` com `id` no body.
+ * apiário de outro, mesmo que a rota deixe passar (defesa em profundidade).
  *
  * @returns o apiário atualizado, ou `null` se ele não existir ou não for do usuário.
  */
