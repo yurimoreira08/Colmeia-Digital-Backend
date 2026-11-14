@@ -1,0 +1,24 @@
+# Postgres local para desenvolvimento e para ensaiar migrations sem tocar na
+# produção. Uso: `docker compose up -d` e, no .env local,
+#   DATABASE_URL=postgresql://colmeia:colmeia@localhost:55432/colmeia_dev
+# Guia completo: docs/BANCO-LOCAL.md
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: colmeia-postgres
+    environment:
+      POSTGRES_USER: colmeia
+      POSTGRES_PASSWORD: colmeia
+      POSTGRES_DB: colmeia_dev
+    ports:
+      - '55432:5432'
+    volumes:
+      - colmeia-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U colmeia -d colmeia_dev']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  colmeia-pgdata:
