@@ -7,6 +7,7 @@ import { router } from './routes/index.js';
 import { parseUserId, requireAuth } from './middlewares/auth.js';
 import { checkRole } from './middlewares/checkRole.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
+import { createAuthLimiter, createGeneralLimiter, createPasswordResetEmailLimiter } from './middlewares/rateLimit.js';
 
 /** Limite padrão do corpo JSON. */
 const DEFAULT_JSON_LIMIT = '1mb';
@@ -35,9 +36,16 @@ export function createApp() {
     }),
   );
 
+  app.use('/api/v1', createGeneralLimiter());
+  const authLimiter = createAuthLimiter();
+  app.use(['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/forgot-password', '/api/v1/auth/reset-password'], authLimiter);
+
   // O parser de 8 MB roda antes e marca o corpo como lido; o de 1 MB então ignora essa rota.
   app.use('/api/v1/upload', express.json({ limit: BASE64_UPLOAD_JSON_LIMIT }));
   app.use(express.json({ limit: DEFAULT_JSON_LIMIT }));
+
+  // Depende do corpo já lido (usa o e-mail como chave).
+  app.use('/api/v1/auth/forgot-password', createPasswordResetEmailLimiter());
 
   app.use(parseUserId);
   app.use(requireAuth);
