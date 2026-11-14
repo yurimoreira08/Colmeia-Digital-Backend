@@ -1,4 +1,5 @@
 import { prisma } from '../prisma.js';
+import { findOwnedApiaryIds } from './ownershipRepository.js';
 import type { Box } from '../../types/mobile-models.js';
 
 function mapPrismaBox(b: any): Box {
@@ -172,11 +173,11 @@ export async function removeBox(boxId: number, userId?: number): Promise<void> {
   if (userId !== undefined) {
     whereReview.OR = [
       { user_id: userId },
-      { apiary_id: { in: (await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } })).map((a: { id: number }) => a.id) } },
+      { apiary_id: { in: await findOwnedApiaryIds(userId) } },
     ];
     whereManejo.OR = [
       { user_id: userId },
-      { apiary_id: { in: (await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } })).map((a: { id: number }) => a.id) } },
+      { apiary_id: { in: await findOwnedApiaryIds(userId) } },
     ];
     whereBox.OR = [
       { user_id: userId },
@@ -195,7 +196,7 @@ export async function archiveBoxRepository(boxId: number, userId?: number): Prom
   const whereBox: any = { id: boxId };
 
   if (userId !== undefined) {
-    const userApiaryIds = (await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } })).map((a: { id: number }) => a.id);
+    const userApiaryIds = await findOwnedApiaryIds(userId);
     whereReview.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
     whereManejo.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
     whereBox.OR = [{ user_id: userId }, { apiary: { user_id: userId } }];
@@ -212,7 +213,7 @@ export async function unarchiveBoxRepository(boxId: number, userId?: number): Pr
   const whereBox: any = { id: boxId };
 
   if (userId !== undefined) {
-    const userApiaryIds = (await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } })).map((a: { id: number }) => a.id);
+    const userApiaryIds = await findOwnedApiaryIds(userId);
     whereReview.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
     whereManejo.OR = [{ user_id: userId }, { apiary_id: { in: userApiaryIds } }];
     whereBox.OR = [{ user_id: userId }, { apiary: { user_id: userId } }];

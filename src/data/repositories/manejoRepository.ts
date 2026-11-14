@@ -1,4 +1,5 @@
 import { prisma } from '../prisma.js';
+import { findOwnedApiaryIds } from './ownershipRepository.js';
 import type { ManejoReport, ManejoTask } from '../../types/mobile-models.js';
 
 function mapPrismaManejo(m: any): ManejoReport {
@@ -88,8 +89,7 @@ export async function listManejos(
     return [];
   }
 
-  const userApiaries = await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } });
-  const userApiaryIds = userApiaries.map((a: { id: number }) => a.id);
+  const userApiaryIds = await findOwnedApiaryIds(userId);
 
   const where: any = {
     OR: [
@@ -125,8 +125,7 @@ export async function listManejos(
 export async function deleteManejo(id: number, userId?: number): Promise<void> {
   const where: any = { id };
   if (userId !== undefined) {
-    const userApiaries = await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } });
-    const userApiaryIds = userApiaries.map((a: { id: number }) => a.id);
+    const userApiaryIds = await findOwnedApiaryIds(userId);
     where.OR = [
       { user_id: userId },
       { apiary_id: { in: userApiaryIds } },
@@ -148,8 +147,7 @@ export async function updateManejo(
 ): Promise<void> {
   const where: any = { id };
   if (userId !== undefined) {
-    const userApiaries = await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } });
-    const userApiaryIds = userApiaries.map((a: { id: number }) => a.id);
+    const userApiaryIds = await findOwnedApiaryIds(userId);
     where.OR = [
       { user_id: userId },
       { apiary_id: { in: userApiaryIds } },
@@ -170,8 +168,7 @@ export async function updateManejo(
 export async function archiveManejoRepository(id: number, userId?: number): Promise<void> {
   const where: any = { id };
   if (userId !== undefined) {
-    const userApiaries = await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } });
-    const userApiaryIds = userApiaries.map((a: { id: number }) => a.id);
+    const userApiaryIds = await findOwnedApiaryIds(userId);
     where.OR = [
       { user_id: userId },
       { apiary_id: { in: userApiaryIds } },
@@ -187,8 +184,7 @@ export async function archiveManejoRepository(id: number, userId?: number): Prom
 export async function unarchiveManejoRepository(id: number, userId?: number): Promise<void> {
   const where: any = { id };
   if (userId !== undefined) {
-    const userApiaries = await prisma.apiary.findMany({ where: { user_id: userId }, select: { id: true } });
-    const userApiaryIds = userApiaries.map((a: { id: number }) => a.id);
+    const userApiaryIds = await findOwnedApiaryIds(userId);
     where.OR = [
       { user_id: userId },
       { apiary_id: { in: userApiaryIds } },
