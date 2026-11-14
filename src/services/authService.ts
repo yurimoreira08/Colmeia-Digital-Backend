@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { createUser, findUserByEmail, findUserById, updateUser, findUserByName, updateUserPassword, acceptUserTerms } from '../data/repositories/userRepository.js';
 import { createSession, deleteSessionByTokenHash, clearActiveSession, findSessionByTokenHash, deleteSessionsByUserId } from '../data/repositories/sessionRepository.js';
 import { createPasswordReset, findValidResetByCodeHash, markResetAsUsed, invalidatePreviousResets } from '../data/repositories/passwordResetRepository.js';
+import { AppError } from '../errors/AppError.js';
 import { sendPasswordResetEmail } from './emailService.js';
 import type { PublicUser, User } from '../types/mobile-models.js';
 
@@ -28,25 +29,25 @@ function assertEmail(email: string): void {
   const normalized = email.trim();
 
   if (!normalized) {
-    throw new Error('Informe o e-mail.');
+    throw new AppError('Informe o e-mail.');
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!emailRegex.test(normalized)) {
-    throw new Error('Informe um e-mail valido.');
+    throw new AppError('Informe um e-mail valido.');
   }
 }
 
 function assertPassword(password: string): void {
   if (!password || password.trim().length < 4) {
-    throw new Error('A senha deve ter pelo menos 4 caracteres.');
+    throw new AppError('A senha deve ter pelo menos 4 caracteres.');
   }
 }
 
 function assertName(name: string): void {
   if (!name || name.trim().length < 2) {
-    throw new Error('Informe seu nome completo.');
+    throw new AppError('Informe seu nome completo.');
   }
 }
 
@@ -91,12 +92,12 @@ export async function register(params: {
 
   const existing = await findUserByEmail(params.email);
   if (existing) {
-    throw new Error('Este e-mail ja esta cadastrado.');
+    throw new AppError('Este e-mail ja esta cadastrado.');
   }
 
   const existingName = await findUserByName(params.name);
   if (existingName) {
-    throw new Error('Este nome de usuário já está em uso.');
+    throw new AppError('Este nome de usuário já está em uso.');
   }
 
   const passwordHash = await hashPassword(params.password);
@@ -127,12 +128,12 @@ export async function login(params: {
 
   const user = await findUserByEmail(params.email);
   if (!user) {
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+    throw new AppError(INVALID_CREDENTIALS_MESSAGE);
   }
 
   const isValid = await verifyPassword(params.password, user.passwordHash);
   if (!isValid) {
-    throw new Error(INVALID_CREDENTIALS_MESSAGE);
+    throw new AppError(INVALID_CREDENTIALS_MESSAGE);
   }
 
   const token = await createSessionForUser(user.id, params.deviceInfo);
@@ -167,12 +168,12 @@ export async function updateProfile(
 
   const existing = await findUserByEmail(params.email);
   if (existing && existing.id !== userId) {
-    throw new Error('Este e-mail ja esta em uso por outro usuario.');
+    throw new AppError('Este e-mail ja esta em uso por outro usuario.');
   }
 
   const existingName = await findUserByName(params.name);
   if (existingName && existingName.id !== userId) {
-    throw new Error('Este nome de usuário já está em uso.');
+    throw new AppError('Este nome de usuário já está em uso.');
   }
 
   const updated = await updateUser(userId, params);
@@ -231,19 +232,19 @@ export async function resetPasswordWithCode(params: {
 
   const normalizedCode = (params.code || '').trim();
   if (!normalizedCode || normalizedCode.length !== 6) {
-    throw new Error('Informe o código de verificação de 6 dígitos.');
+    throw new AppError('Informe o código de verificação de 6 dígitos.');
   }
 
   const user = await findUserByEmail(params.email);
   if (!user) {
-    throw new Error('Código de verificação inválido ou expirado.');
+    throw new AppError('Código de verificação inválido ou expirado.');
   }
 
   const codeHash = crypto.createHash('sha256').update(normalizedCode).digest('hex');
   const resetRecord = await findValidResetByCodeHash(user.id, codeHash);
 
   if (!resetRecord) {
-    throw new Error('Código de verificação inválido ou expirado.');
+    throw new AppError('Código de verificação inválido ou expirado.');
   }
 
   // Marca o código como utilizado

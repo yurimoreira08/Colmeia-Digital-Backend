@@ -1,6 +1,8 @@
+import type { Request, Response } from 'express';
 import { getReportsStats } from '../services/reports.service.js';
+import { sendErrorResponse } from '../middlewares/errorHandler.js';
 
-export function healthController(_: any, res: any): void {
+export function healthController(_req: Request, res: Response): void {
   res.status(200).json({
     status: 'ok',
     service: 'colmeia-digital-backend',
@@ -8,7 +10,7 @@ export function healthController(_: any, res: any): void {
   });
 }
 
-export async function getReportsStatsController(req: any, res: any): Promise<void> {
+export async function getReportsStatsController(req: Request, res: Response): Promise<void> {
   const { fromIso, toIso, searchTerm, chartFilter } = req.body;
 
   if (!fromIso || !toIso || !chartFilter) {
@@ -30,7 +32,6 @@ export async function getReportsStatsController(req: any, res: any): Promise<voi
     );
     res.status(200).json(stats);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Falha ao buscar estatísticas de relatórios.';
-    res.status(500).json({ message });
+    sendErrorResponse(res, error, 'Falha ao buscar estatísticas de relatórios.', 'getReportsStatsController');
   }
 }

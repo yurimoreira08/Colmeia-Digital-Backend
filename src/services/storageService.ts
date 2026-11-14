@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 import { env } from '../config/env.js';
+import { AppError } from '../errors/AppError.js';
 
 let cachedClient: SupabaseClient | null = null;
 let lastUsedUrl = '';
@@ -67,10 +68,10 @@ type AllowedImageMime = keyof typeof ALLOWED_IMAGE_TYPES;
 
 /**
  * Erro de imagem enviada pelo cliente (tipo ou tamanho inválido).
- * O controller devolve 400 com a mensagem deste erro. Qualquer outro erro
- * vira 500 com mensagem genérica, para não expor detalhes do Supabase.
+ * Responde 400 com a mensagem (é um AppError). Qualquer outro erro vira 500
+ * com mensagem genérica, para não expor detalhes do Supabase.
  */
-export class InvalidImageError extends Error {}
+export class InvalidImageError extends AppError {}
 
 export interface UploadImageParams {
   userId: number;

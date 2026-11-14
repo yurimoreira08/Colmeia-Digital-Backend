@@ -12,6 +12,7 @@ import {
 import { getApiaryById, updateApiary } from '../data/repositories/apiaryRepository.js';
 import type { Apiary, Box } from '../types/mobile-models.js';
 import { normalizeBoxName } from '../utils/boxNameNormalizer.js';
+import { AppError } from '../errors/AppError.js';
 
 function getDefaultBoxName(position: number): string {
   return `Caixa ${String(position).padStart(2, '0')}`;
@@ -63,7 +64,7 @@ export async function createRegisteredBox(
 ): Promise<Box> {
   const normalized = params.name.trim();
   if (normalized.length < 2) {
-    throw new Error('Informe um nome valido para a caixa.');
+    throw new AppError('Informe um nome valido para a caixa.');
   }
 
   let position = params.position;
@@ -98,7 +99,7 @@ export async function renameRegisteredBox(boxId: number, name: string, userId?: 
   const normalized = name.trim();
 
   if (normalized.length < 2) {
-    throw new Error('Informe um nome valido para a caixa.');
+    throw new AppError('Informe um nome valido para a caixa.');
   }
 
   await renameBox(boxId, normalizeBoxName(normalized), userId);

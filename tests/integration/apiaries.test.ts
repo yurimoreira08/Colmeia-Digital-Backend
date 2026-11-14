@@ -55,7 +55,7 @@ describe('POST /api/v1/apiaries (atualização com id)', () => {
       .set('Authorization', authHeader(OTHER_USER_ID))
       .send({ id: 10, name: 'Invadido', location: 'Outro lugar', boxCount: '1' });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(404);
     expect(response.body).toEqual({ message: 'Apiário não encontrado.' });
     expect(ownerApiary.name).toBe('Apiário Sede');
     expect(ownerApiary.location).toBe('Teresina');

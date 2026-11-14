@@ -4,6 +4,7 @@ import * as boxService from '../services/boxService.js';
 import * as reviewReportService from '../services/reviewReportService.js';
 import * as manejoService from '../services/manejoService.js';
 import * as storageService from '../services/storageService.js';
+import { sendErrorResponse } from '../middlewares/errorHandler.js';
 import { 
   listRecentNotifications, 
   createNotification, 
@@ -18,7 +19,7 @@ export async function registerController(req: any, res: any): Promise<void> {
     const result = await authService.register(req.body);
     res.status(200).json({ ...result.user, token: result.token });
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro no registro.' });
+    sendErrorResponse(res, error, 'Erro no registro.', 'registerController');
   }
 }
 
@@ -27,7 +28,7 @@ export async function loginController(req: any, res: any): Promise<void> {
     const result = await authService.login(req.body);
     res.status(200).json({ ...result.user, token: result.token });
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro no login.' });
+    sendErrorResponse(res, error, 'Erro no login.', 'loginController');
   }
 }
 
@@ -36,7 +37,7 @@ export async function meController(req: any, res: any): Promise<void> {
     const user = await authService.getCurrentUser(req.userId);
     res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao obter dados da sessão.' });
+    sendErrorResponse(res, error, 'Erro ao obter dados da sessão.', 'meController');
   }
 }
 
@@ -45,7 +46,7 @@ export async function logoutController(req: any, res: any): Promise<void> {
     await authService.logout(req.token, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao encerrar sessão.' });
+    sendErrorResponse(res, error, 'Erro ao encerrar sessão.', 'logoutController');
   }
 }
 
@@ -54,7 +55,7 @@ export async function updateProfileController(req: any, res: any): Promise<void>
     const updated = await authService.updateProfile(req.userId, req.body);
     res.status(200).json(updated);
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao atualizar perfil.' });
+    sendErrorResponse(res, error, 'Erro ao atualizar perfil.', 'updateProfileController');
   }
 }
 
@@ -64,7 +65,7 @@ export async function acceptTermsController(req: any, res: any): Promise<void> {
     const user = await authService.acceptTerms(req.userId, version);
     res.status(200).json(user);
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao registrar aceite dos termos.' });
+    sendErrorResponse(res, error, 'Erro ao registrar aceite dos termos.', 'acceptTermsController');
   }
 }
 
@@ -74,7 +75,7 @@ export async function forgotPasswordController(req: any, res: any): Promise<void
     const result = await authService.requestPasswordReset(email);
     res.status(200).json(result);
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao solicitar recuperação de senha.' });
+    sendErrorResponse(res, error, 'Erro ao solicitar recuperação de senha.', 'forgotPasswordController');
   }
 }
 
@@ -84,7 +85,7 @@ export async function resetPasswordController(req: any, res: any): Promise<void>
     const result = await authService.resetPasswordWithCode({ email, code, newPassword });
     res.status(200).json(result);
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao redefinir senha.' });
+    sendErrorResponse(res, error, 'Erro ao redefinir senha.', 'resetPasswordController');
   }
 }
 
@@ -95,8 +96,7 @@ export async function listApiariesController(req: any, res: any): Promise<void> 
     const apiaries = await apiaryService.listAllApiaries(req.userId);
     res.status(200).json(apiaries);
   } catch (error) {
-    console.error('[API] Erro ao listar apiários:', error);
-    res.status(500).json({ message: 'Erro ao listar apiários.' });
+    sendErrorResponse(res, error, 'Erro ao listar apiários.', 'listApiariesController');
   }
 }
 
@@ -105,7 +105,7 @@ export async function getApiaryController(req: any, res: any): Promise<void> {
     const apiary = await apiaryService.loadApiary(Number(req.params.id), req.userId);
     res.status(200).json(apiary);
   } catch (error) {
-    res.status(404).json({ message: 'Apiário não encontrado.' });
+    sendErrorResponse(res, error, 'Erro ao carregar apiário.', 'getApiaryController');
   }
 }
 
@@ -114,7 +114,7 @@ export async function saveApiaryController(req: any, res: any): Promise<void> {
     const apiary = await apiaryService.saveApiary(req.body, req.userId);
     res.status(200).json(apiary);
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao salvar apiário.' });
+    sendErrorResponse(res, error, 'Erro ao salvar apiário.', 'saveApiaryController');
   }
 }
 
@@ -123,7 +123,7 @@ export async function deleteApiaryController(req: any, res: any): Promise<void> 
     await apiaryService.removeApiary(Number(req.params.id), req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao excluir apiário.' });
+    sendErrorResponse(res, error, 'Erro ao excluir apiário.', 'deleteApiaryController');
   }
 }
 
@@ -142,8 +142,7 @@ export async function listBoxesController(req: any, res: any): Promise<void> {
     }, req.userId);
     res.status(200).json(boxes);
   } catch (error) {
-    console.error('[API] Erro ao listar caixas:', error);
-    res.status(500).json({ message: 'Erro ao listar caixas.' });
+    sendErrorResponse(res, error, 'Erro ao listar caixas.', 'listBoxesController');
   }
 }
 
@@ -152,7 +151,7 @@ export async function createBoxController(req: any, res: any): Promise<void> {
     const box = await boxService.createRegisteredBox(req.body, req.userId);
     res.status(200).json(box);
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao criar caixa.' });
+    sendErrorResponse(res, error, 'Erro ao criar caixa.', 'createBoxController');
   }
 }
 
@@ -163,7 +162,7 @@ export async function renameBoxController(req: any, res: any): Promise<void> {
     await boxService.renameRegisteredBox(boxId, name, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao renomear caixa.' });
+    sendErrorResponse(res, error, 'Erro ao renomear caixa.', 'renameBoxController');
   }
 }
 
@@ -173,7 +172,7 @@ export async function deleteBoxController(req: any, res: any): Promise<void> {
     await boxService.deleteRegisteredBox(boxId, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao excluir caixa.' });
+    sendErrorResponse(res, error, 'Erro ao excluir caixa.', 'deleteBoxController');
   }
 }
 
@@ -183,7 +182,7 @@ export async function archiveBoxController(req: any, res: any): Promise<void> {
     await boxService.archiveBox(boxId, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao arquivar caixa.' });
+    sendErrorResponse(res, error, 'Erro ao arquivar caixa.', 'archiveBoxController');
   }
 }
 
@@ -193,7 +192,7 @@ export async function unarchiveBoxController(req: any, res: any): Promise<void> 
     await boxService.unarchiveBox(boxId, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao desarquivar caixa.' });
+    sendErrorResponse(res, error, 'Erro ao desarquivar caixa.', 'unarchiveBoxController');
   }
 }
 
@@ -213,7 +212,7 @@ export async function listRevisionsController(req: any, res: any): Promise<void>
     }, req.userId);
     res.status(200).json(revisions);
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao listar relatórios de revisão.' });
+    sendErrorResponse(res, error, 'Erro ao listar relatórios de revisão.', 'listRevisionsController');
   }
 }
 
@@ -222,7 +221,7 @@ export async function saveRevisionController(req: any, res: any): Promise<void> 
     const created = await reviewReportService.saveRevision(req.body, req.userId);
     res.status(200).json({ success: true, id: created.id });
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao salvar revisão.' });
+    sendErrorResponse(res, error, 'Erro ao salvar revisão.', 'saveRevisionController');
   }
 }
 
@@ -232,7 +231,7 @@ export async function updateRevisionController(req: any, res: any): Promise<void
     await reviewReportService.updateRevision(id, req.body, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao atualizar revisão.' });
+    sendErrorResponse(res, error, 'Erro ao atualizar revisão.', 'updateRevisionController');
   }
 }
 
@@ -242,7 +241,7 @@ export async function deleteRevisionController(req: any, res: any): Promise<void
     await reviewReportService.deleteRevision(id, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao excluir revisão.' });
+    sendErrorResponse(res, error, 'Erro ao excluir revisão.', 'deleteRevisionController');
   }
 }
 
@@ -252,7 +251,7 @@ export async function archiveRevisionController(req: any, res: any): Promise<voi
     await reviewReportService.archiveRevision(id, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao arquivar revisão.' });
+    sendErrorResponse(res, error, 'Erro ao arquivar revisão.', 'archiveRevisionController');
   }
 }
 
@@ -262,7 +261,7 @@ export async function unarchiveRevisionController(req: any, res: any): Promise<v
     await reviewReportService.unarchiveRevision(id, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao desarquivar revisão.' });
+    sendErrorResponse(res, error, 'Erro ao desarquivar revisão.', 'unarchiveRevisionController');
   }
 }
 
@@ -282,7 +281,7 @@ export async function listManejosController(req: any, res: any): Promise<void> {
     }, req.userId);
     res.status(200).json(manejos);
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao listar manejos.' });
+    sendErrorResponse(res, error, 'Erro ao listar manejos.', 'listManejosController');
   }
 }
 
@@ -291,7 +290,7 @@ export async function saveManejoController(req: any, res: any): Promise<void> {
     const created = await manejoService.saveManejoService(req.body, req.userId);
     res.status(200).json({ success: true, id: created.id });
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao salvar manejo.' });
+    sendErrorResponse(res, error, 'Erro ao salvar manejo.', 'saveManejoController');
   }
 }
 
@@ -301,7 +300,7 @@ export async function updateManejoController(req: any, res: any): Promise<void> 
     await manejoService.updateManejoService(id, req.body, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao atualizar manejo.' });
+    sendErrorResponse(res, error, 'Erro ao atualizar manejo.', 'updateManejoController');
   }
 }
 
@@ -311,7 +310,7 @@ export async function deleteManejoController(req: any, res: any): Promise<void> 
     await manejoService.deleteManejoService(id, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao excluir manejo.' });
+    sendErrorResponse(res, error, 'Erro ao excluir manejo.', 'deleteManejoController');
   }
 }
 
@@ -321,7 +320,7 @@ export async function archiveManejoController(req: any, res: any): Promise<void>
     await manejoService.archiveManejo(id, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao arquivar manejo.' });
+    sendErrorResponse(res, error, 'Erro ao arquivar manejo.', 'archiveManejoController');
   }
 }
 
@@ -331,7 +330,7 @@ export async function unarchiveManejoController(req: any, res: any): Promise<voi
     await manejoService.unarchiveManejo(id, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao desarquivar manejo.' });
+    sendErrorResponse(res, error, 'Erro ao desarquivar manejo.', 'unarchiveManejoController');
   }
 }
 
@@ -346,7 +345,7 @@ export async function listNotificationsController(req: any, res: any): Promise<v
     const notifs = await listRecentNotifications(req.userId, 50);
     res.status(200).json(notifs);
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao listar notificações.' });
+    sendErrorResponse(res, error, 'Erro ao listar notificações.', 'listNotificationsController');
   }
 }
 
@@ -355,7 +354,7 @@ export async function createNotificationController(req: any, res: any): Promise<
     const notif = await createNotification(req.body, req.userId);
     res.status(200).json(notif);
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : 'Erro ao criar notificação.' });
+    sendErrorResponse(res, error, 'Erro ao criar notificação.', 'createNotificationController');
   }
 }
 
@@ -365,7 +364,7 @@ export async function markNotificationReadController(req: any, res: any): Promis
     await markNotificationAsRead(id, req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao marcar notificação como lida.' });
+    sendErrorResponse(res, error, 'Erro ao marcar notificação como lida.', 'markNotificationReadController');
   }
 }
 
@@ -374,24 +373,11 @@ export async function markAllNotificationsReadController(req: any, res: any): Pr
     await markAllNotificationsAsRead(req.userId);
     res.status(200).json({ success: true });
   } catch (error) {
-    res.status(500).json({ message: 'Erro ao marcar todas notificações como lidas.' });
+    sendErrorResponse(res, error, 'Erro ao marcar todas notificações como lidas.', 'markAllNotificationsReadController');
   }
 }
 
 // --- STORAGE / UPLOAD CONTROLLERS ---
-
-/**
- * Responde a uma falha de upload: 400 com a mensagem quando o problema é a
- * imagem enviada, 500 genérico para o resto (sem expor detalhes do Supabase).
- */
-function sendUploadError(res: any, error: unknown, logTag: string): void {
-  if (error instanceof storageService.InvalidImageError) {
-    res.status(400).json({ message: error.message });
-    return;
-  }
-  console.error(`[${logTag}] Falha:`, error instanceof Error ? error.message : error);
-  res.status(500).json({ message: 'Erro ao realizar upload de imagem.' });
-}
 
 /**
  * Upload de imagem em base64 (usado pela foto de perfil).
@@ -422,7 +408,7 @@ export async function uploadController(req: any, res: any): Promise<void> {
 
     res.status(200).json({ success: true, url: result.url, path: result.path });
   } catch (error) {
-    sendUploadError(res, error, 'UploadController');
+    sendErrorResponse(res, error, 'Erro ao realizar upload de imagem.', 'uploadController');
   }
 }
 
@@ -451,6 +437,6 @@ export async function uploadManejoPhotoController(req: any, res: any): Promise<v
 
     res.status(200).json({ success: true, url: result.url, path: result.path });
   } catch (error) {
-    sendUploadError(res, error, 'UploadManejoPhotoController');
+    sendErrorResponse(res, error, 'Erro ao realizar upload da foto de manejo.', 'uploadManejoPhotoController');
   }
 }

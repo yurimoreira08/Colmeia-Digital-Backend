@@ -4,6 +4,7 @@ import express from 'express';
 import { router } from './routes/index.js';
 import { parseUserId, requireAuth } from './middlewares/auth.js';
 import { checkRole } from './middlewares/checkRole.js';
+import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 export function createApp() {
   const app = express();
@@ -22,9 +23,8 @@ export function createApp() {
 
   app.use('/api/v1', router);
 
-  app.use((_: any, res: any) => {
-    res.status(404).json({ message: 'Rota nao encontrada.' });
-  });
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 }

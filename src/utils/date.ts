@@ -1,3 +1,5 @@
+import { AppError } from '../errors/AppError.js';
+
 export function maskDateInput(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 8);
 
@@ -35,7 +37,7 @@ export function displayDateToIso(value: string): string {
   const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
 
   if (!match) {
-    throw new Error('Data invalida. Use o formato dd/mm/aaaa.');
+    throw new AppError('Data invalida. Use o formato dd/mm/aaaa.');
   }
 
   const day = match[1].padStart(2, '0');

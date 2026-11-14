@@ -7,12 +7,13 @@ import {
 } from '../data/repositories/apiaryRepository.js';
 import { createNotification } from '../data/repositories/notificationsRepository.js';
 import type { Apiary } from '../types/mobile-models.js';
+import { AppError, NotFoundError } from '../errors/AppError.js';
 
 function parseBoxCount(value: string): number {
   const parsed = Number(value);
 
   if (!Number.isFinite(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
-    throw new Error('Informe uma quantidade de caixas válida.');
+    throw new AppError('Informe uma quantidade de caixas válida.');
   }
 
   return parsed;
@@ -20,7 +21,7 @@ function parseBoxCount(value: string): number {
 
 function assertRequired(value: string, fieldLabel: string): void {
   if (!value || value.trim().length < 2) {
-    throw new Error(`Informe ${fieldLabel}.`);
+    throw new AppError(`Informe ${fieldLabel}.`);
   }
 }
 
@@ -59,7 +60,7 @@ export async function saveApiary(
     // null = apiário inexistente ou de outro usuário; a mensagem é a mesma nos
     // dois casos para não revelar se o id existe.
     if (!updated) {
-      throw new Error('Apiário não encontrado.');
+      throw new NotFoundError('Apiário não encontrado.');
     }
 
     await createNotification({
