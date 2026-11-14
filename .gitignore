@@ -14,4 +14,8 @@ yarn-error.log*
 
 # Backups
 backups/
-*.sql
+# Dumps soltos na raiz (as migrations do Prisma em prisma/migrations são versionadas)
+/*.sql
+
+# Postgres local sem Docker (docs/BANCO-LOCAL.md)
+.pgdata/
