@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { signPhotoUrl, toStoredPhotoUrl } from './storageService.js';
 import bcrypt from 'bcryptjs';
 import { createUser, findUserByEmail, findUserById, updateUser, findUserByName, updateUserPassword, acceptUserTerms } from '../data/repositories/userRepository.js';
-import { createSession, deleteSessionByTokenHash, clearActiveSession, findSessionByTokenHash, deleteSessionsByUserId } from '../data/repositories/sessionRepository.js';
+import { createSession, deleteSessionByTokenHash, clearActiveSession, findSessionByTokenHash, deleteSessionsByUserId, extendSession } from '../data/repositories/sessionRepository.js';
 import { createPasswordReset, findValidResetByCodeHash, incrementResetAttempts, markResetAsUsed, invalidatePreviousResets } from '../data/repositories/passwordResetRepository.js';
 import { AppError } from '../errors/AppError.js';
 import { sendPasswordResetEmail } from './emailService.js';
@@ -110,10 +110,15 @@ export async function verifyPassword(password: string, hash: string): Promise<{ 
   return { valid: false, needsRehash: false };
 }
 
+/** Validade da sessão: 30 dias desde o último uso (renovação deslizante). */
+const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
+/** A sessão é renovada no máximo uma vez por dia, para não gravar no banco a cada requisição. */
+const SESSION_RENEW_AFTER_MS = 24 * 3600 * 1000;
+
 export async function createSessionForUser(userId: number, deviceInfo?: string): Promise<string> {
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(rawToken);
-  const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000); // 30 dias
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
   await createSession({
     userId,
@@ -243,10 +248,21 @@ export async function updateProfile(
   return toPublicUser(updated);
 }
 
+/**
+ * Confere o token e renova a sessão em uso: quem abre o app pelo menos uma
+ * vez a cada 30 dias nunca perde a sessão. Antes a validade contava só do
+ * login, e depois de 30 dias o sync recebia 401 sem que o apicultor percebesse.
+ */
 export async function authenticateToken(token: string): Promise<number | null> {
   const tokenHash = hashToken(token);
   const session = await findSessionByTokenHash(tokenHash);
-  return session ? session.userId : null;
+  if (!session) return null;
+
+  const renewedExpiry = Date.now() + SESSION_TTL_MS;
+  if (renewedExpiry - session.expiresAt.getTime() >= SESSION_RENEW_AFTER_MS) {
+    await extendSession(session.id, new Date(renewedExpiry));
+  }
+  return session.userId;
 }
 
 /**

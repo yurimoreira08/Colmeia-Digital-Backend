@@ -49,6 +49,7 @@ prisma/migrations/       0_init (baseline de 14/11/2026) + migrations
 ## Autenticação
 
 - O login gera um token aleatório (32 bytes, hex). Só o **SHA-256** dele fica em `sessions.token_hash` (validade de 30 dias). O cliente envia `Authorization: Bearer <token>`.
+- **Sessão deslizante:** `authenticateToken` renova a validade para 30 dias a partir do uso, no máximo uma vez por dia por sessão. Quem usa o app nunca perde a sessão; antes a validade contava só do login, e o sync recebia 401 depois de 30 dias.
 - `parseUserId` resolve `req.userId`; `requireAuth` bloqueia tudo, exceto a lista `publicPaths`.
 - **Senhas:** senhas novas têm de 8 a 72 caracteres e valem **exatamente como digitadas** (sem trim), com bcrypt custo 12. O login não aplica a política (contas antigas podem ter senhas curtas) e regrava o hash quando o custo é antigo ou quando ele só bateu pela versão com trim (hashes antigos).
 - **Respostas nunca trazem o hash da senha:** toda resposta com usuário usa `PublicUser`, via `toPublicUser()`.

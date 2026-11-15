@@ -78,3 +78,8 @@ export async function clearActiveSession(tokenHash?: string, userId?: number): P
     await prisma.session.deleteMany({});
   }
 }
+
+/** Estende a validade de uma sessão (renovação deslizante; ver authenticateToken). */
+export async function extendSession(sessionId: number, expiresAt: Date): Promise<void> {
+  await prisma.session.updateMany({ where: { id: sessionId }, data: { expires_at: expiresAt } });
+}
